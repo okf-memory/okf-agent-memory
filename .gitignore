@@ -1,0 +1,41 @@
+# Binaries and build artifacts
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts and coverage
+*.test
+*.out
+cover.out
+coverage.html
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE and Editor files
+.idea/
+.vscode/
+.obsidian/
+*.swp
+*.swo
+*~
+
+
+# Scratch and temporary directories
+scratch/
+tmp/
+
+# Website and Landing page (hosted separately)
+/landingpage/

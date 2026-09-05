@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to release (e.g. v0.3.0 or dev)'
+        required: true
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Determine Version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "CLEAN_VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Build Cross-Platform Binaries
+        run: |
+          mkdir -p dist/bin
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LDFLAGS="-s -w -X main.Version=${VERSION} -X main.Commit=${SHORT_SHA} -X main.Date=${BUILD_DATE}"
+          
+          # Linux
+          GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bin/okf-linux-amd64 ./cmd/okf
+          GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bin/okf-linux-arm64 ./cmd/okf
+          
+          # macOS
+          GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bin/okf-darwin-arm64 ./cmd/okf
+          GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bin/okf-darwin-amd64 ./cmd/okf
+          
+          # Windows
+          GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bin/okf-windows-amd64.exe ./cmd/okf
+          GOOS=windows GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bin/okf-windows-arm64.exe ./cmd/okf
+
+      - name: Build Starter Pack Distribution Archives
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LDFLAGS="-s -w -X main.Version=${VERSION} -X main.Commit=${SHORT_SHA} -X main.Date=${BUILD_DATE}"
+          
+          go build -ldflags="${LDFLAGS}" -o bin/okf ./cmd/okf
+          
+          mkdir -p dist/okf-starter-pack
+          ./bin/okf bootstrap dist/okf-starter-pack --name "Project"
+          mkdir -p dist/okf-starter-pack/bin
+          cp bin/okf dist/okf-starter-pack/bin/okf
+          
+          # Create tar.gz and zip
+          tar -czf dist/okf-starter-pack-${VERSION}.tar.gz -C dist okf-starter-pack
+          (cd dist && zip -r okf-starter-pack-${VERSION}.zip okf-starter-pack)
+
+      - name: Generate Checksums & Homebrew Formula
+        working-directory: dist
+        run: |
+          sha256sum bin/* okf-starter-pack-* > checksums.txt
+          cat checksums.txt
+          
+          # Extract SHA256 hashes for Homebrew formula
+          ARM64_MAC_SHA=$(sha256sum bin/okf-darwin-arm64 | awk '{print $1}')
+          AMD64_MAC_SHA=$(sha256sum bin/okf-darwin-amd64 | awk '{print $1}')
+          ARM64_LINUX_SHA=$(sha256sum bin/okf-linux-arm64 | awk '{print $1}')
+          AMD64_LINUX_SHA=$(sha256sum bin/okf-linux-amd64 | awk '{print $1}')
+          
+          CLEAN_VER="${{ steps.get_version.outputs.CLEAN_VERSION }}"
+          TAG_VER="${{ steps.get_version.outputs.VERSION }}"
+          
+          mkdir -p Formula
+          cat <<EOF > Formula/okf.rb
+          class Okf < Formula
+            desc "Domain-neutral, Git-native persistent project memory for AI agents (OKF v0.2)"
+            homepage "https://github.com/okf-memory/okf-agent-memory"
+            version "${CLEAN_VER}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/okf-memory/okf-agent-memory/releases/download/${TAG_VER}/okf-darwin-arm64"
+                sha256 "${ARM64_MAC_SHA}"
+
+                def install
+                  bin.install "okf-darwin-arm64" => "okf"
+                end
+              else
+                url "https://github.com/okf-memory/okf-agent-memory/releases/download/${TAG_VER}/okf-darwin-amd64"
+                sha256 "${AMD64_MAC_SHA}"
+
+                def install
+                  bin.install "okf-darwin-amd64" => "okf"
+                end
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/okf-memory/okf-agent-memory/releases/download/${TAG_VER}/okf-linux-arm64"
+                sha256 "${ARM64_LINUX_SHA}"
+
+                def install
+                  bin.install "okf-linux-arm64" => "okf"
+                end
+              else
+                url "https://github.com/okf-memory/okf-agent-memory/releases/download/${TAG_VER}/okf-linux-amd64"
+                sha256 "${AMD64_LINUX_SHA}"
+
+                def install
+                  bin.install "okf-linux-amd64" => "okf"
+                end
+              end
+            end
+
+            test do
+              assert_match "okf version #{version}", shell_output("#{bin}/okf version")
+              (testpath/"knowledge").mkpath
+              system "#{bin}/okf", "init", testpath/"knowledge"
+              assert_predicate testpath/"knowledge/index.md", :exist?
+            end
+          end
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: OKF Agent Memory ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/bin/*
+            dist/okf-starter-pack-${{ steps.get_version.outputs.VERSION }}.tar.gz
+            dist/okf-starter-pack-${{ steps.get_version.outputs.VERSION }}.zip
+            dist/checksums.txt
+            dist/Formula/okf.rb
+          generate_release_notes: true

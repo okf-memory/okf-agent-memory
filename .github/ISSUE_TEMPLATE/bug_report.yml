@@ -1,0 +1,55 @@
+name: 🐛 Bug Report
+description: Report an issue or unexpected behavior in OKF Agent Memory
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please ensure you have checked existing issues before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: OKF Version
+      description: What version of okf are you running? (Run `okf version`)
+      placeholder: e.g. v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating System & Architecture
+      description: e.g. macOS (Apple Silicon), Ubuntu 24.04 (amd64), Windows 11
+      placeholder: e.g. macOS Sonoma (arm64)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps or CLI commands to reproduce the issue.
+      placeholder: |
+        1. okf init knowledge
+        2. okf create ...
+        3. okf validate knowledge
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output or Terminal Screenshots
+      render: shell

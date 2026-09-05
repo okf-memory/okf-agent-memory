@@ -1,0 +1,33 @@
+name: 💡 Feature Request / RFC
+description: Suggest an idea, enhancement, or protocol RFC for OKF Agent Memory
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome ideas for improving OKF Agent Memory, the CLI, MCP server, or specification tooling!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem or limitation?
+      description: A clear description of the challenge or friction you are experiencing.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / Enhancement
+      description: Describe the solution or new capability you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you have considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Links, agent frameworks (Claude Code, Cursor, Windsurf, Aider), or use cases.

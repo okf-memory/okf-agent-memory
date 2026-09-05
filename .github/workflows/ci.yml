@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Build, Test & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Check Go format
+        run: |
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "The following files are not formatted with gofmt:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+
+      - name: Run Go Vet
+        run: go vet ./...
+
+      - name: Build okf binary
+        run: make build
+
+      - name: Run unit & integration tests
+        run: make test
+
+      - name: Validate project knowledge bundle
+        run: make validate
+
+      - name: Validate example bundles
+        run: |
+          ./bin/okf validate examples/software --strict
+          ./bin/okf validate examples/coaching --strict
+          ./bin/okf validate examples/books --strict
+
+      - name: Test bootstrap scaffolding
+        run: |
+          mkdir -p /tmp/test-okf-scaffold
+          ./bin/okf bootstrap /tmp/test-okf-scaffold --name "Test Scaffold Project"
+          ./bin/okf validate /tmp/test-okf-scaffold/knowledge --strict
+          rm -rf /tmp/test-okf-scaffold
