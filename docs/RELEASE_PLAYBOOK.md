@@ -137,16 +137,16 @@ git push origin "${RELEASE_VER}"
    - `checksums.txt`
    - `Formula/okf.rb`
 
-### 2. Update Homebrew Tap
-If maintaining `okf-memory/homebrew-tap`:
-1. Copy the generated `Formula/okf.rb` from the release assets into the tap repository.
-2. Commit and push to `okf-memory/homebrew-tap`.
-3. Test installation:
+### 2. Verify Homebrew Tap Sync
+The release workflow automatically updates `okf-memory/homebrew-tap` if `HOMEBREW_TAP_TOKEN` is configured:
+1. Verify the automated commit in `https://github.com/okf-memory/homebrew-tap/commits/main`.
+2. Test installation:
    ```bash
    brew update
    brew upgrade okf
    okf version
    ```
+*(Fallback if token is absent: Manually copy the generated `Formula/okf.rb` from the release assets into `okf-memory/homebrew-tap`).*
 
 ### 3. Verify Direct Go Install
 Test direct global installation via Go toolchain:

@@ -1,20 +1,27 @@
+# Packaging & Distribution: Homebrew Formula Template
+# -----------------------------------------------------------------------------
+# This file serves as the reference template for Homebrew packaging.
+# During automated CI/CD release builds (.github/workflows/release.yml),
+# real SHA256 checksums and tag versions are dynamically injected and pushed
+# to the official tap repository: https://github.com/okf-memory/homebrew-tap
+
 class Okf < Formula
   desc "Domain-neutral, Git-native persistent project memory for AI agents (OKF v0.2)"
   homepage "https://github.com/okf-memory/okf-agent-memory"
-  version "0.1.0"
+  version "{{VERSION}}"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/okf-memory/okf-agent-memory/releases/download/v#{version}/okf-darwin-arm64"
-      sha256 "d7411eb7d473e21ec93a1923a1bcece2794b434f8d077894ae1f2f352021f929"
+      sha256 "{{ARM64_DARWIN_SHA256}}"
 
       def install
         bin.install "okf-darwin-arm64" => "okf"
       end
     else
       url "https://github.com/okf-memory/okf-agent-memory/releases/download/v#{version}/okf-darwin-amd64"
-      sha256 "761d2111b49703dfd6288338e1d1d542dd69a43a5eed2475987826d938d831ff"
+      sha256 "{{AMD64_DARWIN_SHA256}}"
 
       def install
         bin.install "okf-darwin-amd64" => "okf"
@@ -25,14 +32,14 @@ class Okf < Formula
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/okf-memory/okf-agent-memory/releases/download/v#{version}/okf-linux-arm64"
-      sha256 "ff6b1ce0a3b2c2acc80610fca765f1c5c0324caa05ceccc49da721afcec9c3a5"
+      sha256 "{{ARM64_LINUX_SHA256}}"
 
       def install
         bin.install "okf-linux-arm64" => "okf"
       end
     else
       url "https://github.com/okf-memory/okf-agent-memory/releases/download/v#{version}/okf-linux-amd64"
-      sha256 "d04bbaa37940470aebc9f249f46b0dec42cae9d142aafabf012f206c7a5176fb"
+      sha256 "{{AMD64_LINUX_SHA256}}"
 
       def install
         bin.install "okf-linux-amd64" => "okf"

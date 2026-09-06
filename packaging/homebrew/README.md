@@ -1,39 +1,21 @@
 # Homebrew Tap for OKF Agent Memory
 
-This directory contains the official Homebrew Formula for **OKF Agent Memory** (`okf`).
+The official Homebrew Tap for **OKF Agent Memory** (`okf`) is maintained in the dedicated repository:
+👉 **[okf-memory/homebrew-tap](https://github.com/okf-memory/homebrew-tap)**
 
----
-
-## 🚀 Setting up `okf-memory/homebrew-tap`
-
-To allow users worldwide to install via `brew install okf-memory/tap/okf`, create a dedicated GitHub repository named **`homebrew-tap`** under your GitHub organization (`okf-memory/homebrew-tap`):
-
-```bash
-# 1. Create a new empty repository on GitHub: okf-memory/homebrew-tap
-# 2. Clone it locally or initialize it:
-mkdir -p homebrew-tap/Formula
-cp packaging/homebrew/Formula/okf.rb homebrew-tap/Formula/okf.rb
-
-cd homebrew-tap
-git init
-git add Formula/okf.rb
-git commit -m "feat: add okf formula v0.1.0"
-git remote add origin git@github.com:okf-memory/homebrew-tap.git
-git branch -M main
-git push -u origin main
-```
+The file in `Formula/okf.rb.tmpl` serves as the reference template for distribution packaging.
 
 ---
 
 ## 📦 How Users Install It
 
-Once `okf-memory/homebrew-tap` is pushed, any user on macOS (Apple Silicon or Intel) or Linux can install with a single command:
+Users on macOS (Apple Silicon & Intel) and Linux can install `okf` with a single command:
 
 ```bash
 brew install okf-memory/tap/okf
 ```
 
-Or by tapping first:
+Or by tapping the repository first:
 
 ```bash
 brew tap okf-memory/tap
@@ -42,6 +24,8 @@ brew install okf
 
 ---
 
-## 🔄 Automatic Formula Updates on Release
+## 🔄 Automatic Formula Synchronization
 
-The `.github/workflows/release.yml` workflow automatically computes the exact SHA256 hashes for all platform binaries and generates the updated `Formula/okf.rb` on each new release tag (`v*`).
+When a new version tag (e.g. `v0.2.0`) is published in this repository:
+1. `.github/workflows/release.yml` compiles cross-platform binaries and generates `Formula/okf.rb` with accurate SHA256 checksums.
+2. If `HOMEBREW_TAP_TOKEN` is configured in repository secrets, the workflow automatically commits and pushes the updated formula directly to `okf-memory/homebrew-tap`. No manual editing is required!

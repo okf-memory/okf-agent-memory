@@ -160,3 +160,25 @@ jobs:
             dist/checksums.txt
             dist/Formula/okf.rb
           generate_release_notes: true
+
+      - name: Auto-update Homebrew Tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          echo "Updating okf-memory/homebrew-tap with new Formula..."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git clone https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/okf-memory/homebrew-tap.git tap-repo
+          cp dist/Formula/okf.rb tap-repo/Formula/okf.rb
+          cd tap-repo
+          git add Formula/okf.rb
+          if git diff --staged --quiet; then
+            echo "Formula is already up to date."
+          else
+            git commit -m "chore(formula): bump okf to ${{ steps.get_version.outputs.VERSION }}"
+            git push origin main
+            echo "Successfully updated okf-memory/homebrew-tap!"
+          fi
+
