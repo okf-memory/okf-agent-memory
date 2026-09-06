@@ -58,9 +58,17 @@ okf-agent-memory/
 
 ---
 
-## 3. Tooling & Commands
+## 3. Tooling & Commands (Dual-Mode: MCP & CLI)
 
-Use the `okf` CLI or MCP server for all memory operations:
+Memory operations support both native MCP tools and the deterministic `okf` CLI:
+
+### Option A: Native MCP Tools (Recommended when MCP is active)
+If the `okf_*` tools (`okf_search`, `okf_show`, `okf_validate`, `okf_create`, `okf_update`, `okf_relate`) are available in your toolset, **always prefer them** over shell commands. They execute in-process with zero terminal overhead or sandbox prompts.
+- Tools default to the project's `./knowledge` bundle.
+- For multi-bundle repositories or custom paths, pass the optional `bundle` argument (e.g. `okf_search(query="...", bundle="examples/software")`).
+
+### Option B: `okf` CLI Fallback (Standalone / CI/CD)
+When running in environments without the MCP server, use the CLI:
 
 ```bash
 # Validate the knowledge bundle (strict conformance + drift check)

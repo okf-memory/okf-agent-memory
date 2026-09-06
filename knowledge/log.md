@@ -1,3 +1,6 @@
+## 2026-09-06
+* **Release**: Published version v0.1.1 resolving MCP server JSON-RPC 2.0 notification compliance, adding dynamic multi-bundle resolution, and documenting Dual-Mode (MCP-First) agent workflows.
+
 ## 2026-09-05
 * **Release**: Prepared official Release v0.1.0 of OKF Agent Memory (pure Go single binary, sub-300µs BM25 search, embedded stdio MCP server, and 1-step bootstrap).
 

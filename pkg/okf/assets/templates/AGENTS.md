@@ -25,13 +25,15 @@ Welcome to the **{{PROJECT_NAME}}** repository. When working in this codebase, y
 4. **Preserve Trust & Provenance**:
    - Agent writes declare `generated: { by: "<agent>", at: "<timestamp>" }`. Never forge human verification (`verified:`).
 
-5. **Essential Memory Commands**:
-   - `okf search "<query>"` — Query memory using in-memory BM25
-   - `okf show <id>` — Inspect concept details and relationship graph
-   - `okf create <id> --type <type> --title "<title>" --desc "<desc>"` — Document new fact
-   - `okf update <id> --desc "<updated-desc>"` — Modify existing concept
-   - `okf relate <src> <tgt> --desc "<rel>"` — Link concepts together
-   - `okf validate knowledge --strict --drift` — Verify 100% OKF v0.2 conformance
+5. **Tooling & Retrieval (Dual-Mode: MCP & CLI)**:
+   - **MCP First**: If `okf_*` tools (`okf_search`, `okf_show`, `okf_create`, etc.) are available, prefer them over CLI commands. By default, they target `./knowledge` (or pass `bundle: "<path>"` for other bundles).
+   - **CLI Fallback**:
+     - `okf search "<query>" [bundle]` — Query memory using in-memory BM25
+     - `okf show <id> [bundle]` — Inspect concept details and relationship graph
+     - `okf create <id> [bundle] --type <type> --title "<title>" --desc "<desc>"` — Document new fact
+     - `okf update <id> [bundle] --desc "<updated-desc>"` — Modify existing concept
+     - `okf relate <src> <tgt> [bundle] --desc "<rel>"` — Link concepts together
+     - `okf validate [bundle] --strict --drift` — Verify 100% OKF v0.2 conformance
 
 6. **End-of-Task Review Checklist**:
    - Did I make an architectural decision? -> Record under `knowledge/architecture/`

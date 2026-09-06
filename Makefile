@@ -28,7 +28,7 @@ install:
 
 ## test: Run all Go unit and integration tests
 test:
-	@go test -v ./pkg/okf/...
+	@go test -v ./...
 
 ## fmt: Format all Go source files with gofumpt
 fmt:
