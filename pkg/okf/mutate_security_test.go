@@ -382,24 +382,24 @@ func TestValidateConceptID_ReservedAndTraversal(t *testing.T) {
 	}{
 		{"concept", false},
 		{"sub/concept", false},
-		{"sub\\concept", true},             // backslash separator
-		{"sub/../../escaped", true},        // traversal
-		{"/abs/concept", true},             // leading slash
-		{"\\abs\\concept", true},           // leading backslash
-		{"index", true},                    // reserved base
-		{"INDEX", true},                    // reserved case-insensitive
-		{"InDeX.mD", true},                 // reserved extension case-insensitive
-		{"log", true},                      // reserved log
-		{"LOG.MD", true},                   // reserved log.md
-		{"AGENTS", true},                   // reserved AGENTS
-		{"agents.md", true},                // reserved agents.md
-		{"sub/index.md", true},             // reserved index in subfolder
-		{"sub/dir/index", true},            // reserved index in subfolder
-		{".", true},                        // current dir
-		{"..", true},                       // parent dir
-		{"", true},                         // empty string
-		{"   ", true},                      // whitespace only
-		{"sub/./concept", false},           // clean relative path (clean resolves to sub/concept)
+		{"sub\\concept", true},      // backslash separator
+		{"sub/../../escaped", true}, // traversal
+		{"/abs/concept", true},      // leading slash
+		{"\\abs\\concept", true},    // leading backslash
+		{"index", true},             // reserved base
+		{"INDEX", true},             // reserved case-insensitive
+		{"InDeX.mD", true},          // reserved extension case-insensitive
+		{"log", true},               // reserved log
+		{"LOG.MD", true},            // reserved log.md
+		{"AGENTS", true},            // reserved AGENTS
+		{"agents.md", true},         // reserved agents.md
+		{"sub/index.md", true},      // reserved index in subfolder
+		{"sub/dir/index", true},     // reserved index in subfolder
+		{".", true},                 // current dir
+		{"..", true},                // parent dir
+		{"", true},                  // empty string
+		{"   ", true},               // whitespace only
+		{"sub/./concept", false},    // clean relative path (clean resolves to sub/concept)
 	}
 
 	for _, tc := range cases {
