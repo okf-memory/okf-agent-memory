@@ -18,7 +18,7 @@ The tooling layer enforces defensive confinement across four critical choke-poin
 ### 1. Canonical Bundle Confinement (`ensureWithinRoot`)
 All file reads in `LoadBundle` and writes in `SaveConcept`, `UpdateParentIndex`, and `AppendLogEntry` resolve symlinks and compare canonical paths against the bundle root via `filepath.Rel`.
 - Traversal via relative parent references (`..`) or absolute paths escaping the bundle directory is strictly denied.
-- Root-reserved files (`index.md`, `log.md`) cannot be overwritten as arbitrary concept documents.
+- Root-reserved files (`index.md`, `log.md`, `AGENTS.md`) cannot be overwritten as arbitrary concept documents regardless of letter case (`strings.EqualFold`). Subdirectory concepts (e.g. `architecture/agents.md`) remain permissible.
 
 ### 2. Symlink Escape Prevention
 To defend against Local File Inclusion (LFI) and Arbitrary File Overwrite:
@@ -36,6 +36,12 @@ Metadata fields (`type`, `title`, `description`, `actor`) are strictly validated
 The stdio Model Context Protocol (MCP) server confines dynamic bundle switching:
 - The server initializes with a canonical `rootDir` (governed by project workspace or `OKF_MCP_ROOT`).
 - Multi-bundle projects can dynamically select sub-bundles (e.g. `bundle="examples/software"`), but any request escaping the server root is denied before loading.
+- Required MCP mutation arguments (`concept_id`, `type`, `title`, `description`) are strictly non-empty.
+
+### 5. Collaborative File Permissions (`0o644` / `0o755`)
+OKF bundles are designed for shared Git repository version control:
+- Files are created with `0o644` (rw-r--r--) and directories with `0o755` (rwxr-xr-x).
+- Static analysis rules intended for secret credential files (such as `gosec G301/G306` requiring `0600`/`0750`) are deliberately excluded, ensuring bundle readability across multi-user environments, CI/CD runners, and Git sub-processes.
 
 ## Relationships
 
@@ -44,3 +50,4 @@ The stdio Model Context Protocol (MCP) server confines dynamic bundle switching:
 
 # Related Concepts
 - [MCP Tool Security & Untrusted Agent Input](../convention/mcp-agent-safety.md): Behavioral MCP guidelines complement deterministic boundaries
+- [Automated Security Auditing & Jules Remediation Workflow](../convention/security-audit.md): Proactive adversarial auditing and verification pipeline

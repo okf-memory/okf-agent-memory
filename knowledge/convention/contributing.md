@@ -70,3 +70,5 @@ Before requesting a review or merging into `main`, verify:
 - [Core Memory Principles & Agent Contract](principles.md): Contributors must follow the core memory principles
 - [Knowledge Lifecycle & Review Workflow](lifecycle.md): PR workflows must integrate the knowledge review lifecycle
 - [5-Layer System Architecture](../architecture/layers.md): Code contributions must adhere to the 5-layer architecture and zero-dependency rule
+- [Automated Security Auditing & Jules Remediation Workflow](security-audit.md): Continuous security audit expectations and integration pipeline
+- [Engineering & Coding Best Practices (Clean Code, TDD, DRY)](coding-standards.md): Core coding conventions including TDD, Clean Code, DRY, and idiomatic Go

@@ -189,6 +189,152 @@ func TestMCPToolCalls(t *testing.T) {
 	}
 }
 
+func TestMCP_ResolveBundleDir_RootConfinement(t *testing.T) {
+	tmpDir := t.TempDir()
+	serverRoot := filepath.Join(tmpDir, "workspace")
+	bundleDir := filepath.Join(serverRoot, "knowledge")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Root\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	// Set OKF_MCP_ROOT environment variable to serverRoot during test
+	t.Setenv("OKF_MCP_ROOT", serverRoot)
+
+	inputs := []string{
+		// 1. Valid bundle path relative to server root
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"knowledge","query":"Root"}}}`,
+		// 2. Traversal escaping server root via relative path
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"../../outside","query":"test"}}}`,
+		// 3. Absolute path escaping server root
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"/var","query":"test"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != 3 {
+		t.Fatalf("Expected 3 responses, got %d", len(responses))
+	}
+
+	// 1. Valid bundle
+	r1Map, _ := responses[0].Result.(map[string]any)
+	if isErr, _ := r1Map["isError"].(bool); isErr {
+		t.Errorf("Expected valid bundle call to succeed, got error: %+v", r1Map)
+	}
+
+	// 2 & 3. Escaping bundles
+	for i := 1; i < 3; i++ {
+		rMap, _ := responses[i].Result.(map[string]any)
+		if isErr, _ := rMap["isError"].(bool); !isErr {
+			t.Errorf("Step %d: Expected path traversal denial, got success: %+v", i+1, rMap)
+		}
+	}
+}
+
+func TestMCP_ToolCallArgumentSanitization(t *testing.T) {
+	tmpDir := t.TempDir()
+	bundleDir := filepath.Join(tmpDir, "bundle")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Bundle\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	inputs := []string{
+		// 1. okf_show with empty concept_id
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_show","arguments":{"bundle":"` + bundleDir + `","concept_id":""}}}`,
+		// 2. okf_update with non-existent concept_id
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"nonexistent","title":"New Title"}}}`,
+		// 3. okf_relate with invalid source_id
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + bundleDir + `","source_id":"../escaped","target_id":"valid-target"}}}`,
+		// 4. okf_relate with invalid target_id
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + bundleDir + `","source_id":"valid-src","target_id":"../escaped"}}}`,
+		// 5. okf_create with empty description
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"c1","type":"Fact","title":"Title","description":"   "}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != len(inputs) {
+		t.Fatalf("Expected %d responses, got %d", len(inputs), len(responses))
+	}
+
+	for i, r := range responses {
+		rMap, ok := r.Result.(map[string]any)
+		if !ok {
+			t.Fatalf("Step %d result is not map[string]any: %T", i+1, r.Result)
+		}
+		if isError, _ := rMap["isError"].(bool); !isError {
+			t.Errorf("Step %d: Expected isError=true for invalid input, got success: %+v", i+1, rMap)
+		}
+	}
+}
+
+func TestMCPBundle_SymlinkAncestorTraversalDenied(t *testing.T) {
+	tmpDir := t.TempDir()
+	serverRoot := filepath.Join(tmpDir, "server")
+	bundleDir := filepath.Join(serverRoot, "knowledge")
+	outsideDir := filepath.Join(tmpDir, "outside")
+
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.MkdirAll(outsideDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Root\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	// Symlink inside serverRoot pointing to outsideDir
+	symlinkPath := filepath.Join(serverRoot, "sym_outside")
+	if err := os.Symlink(outsideDir, symlinkPath); err != nil {
+		t.Skipf("Symlinks not supported: %v", err)
+	}
+
+	inputs := []string{
+		// Attempt bundle creation via symlinked ancestor pointing outside serverRoot
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"sym_outside/nonexistent_bundle","concept_id":"evil","type":"Fact","title":"Evil","description":"Should fail"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != 1 {
+		t.Fatalf("Expected 1 response, got %d", len(responses))
+	}
+
+	rMap, ok := responses[0].Result.(map[string]any)
+	if !ok {
+		t.Fatalf("Response result is not map[string]any: %T", responses[0].Result)
+	}
+	if isError, _ := rMap["isError"].(bool); !isError {
+		t.Errorf("Expected response to have isError: true, got: %+v", rMap)
+	}
+
+	// Verify nothing was created in outsideDir
+	entries, _ := os.ReadDir(outsideDir)
+	if len(entries) > 0 {
+		t.Fatalf("Security failure: files created in outside directory: %v", entries)
+	}
+}
+
+func TestMCPCreate_SubdirectoryReservedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	bundleDir := filepath.Join(tmpDir, "bundle")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Bundle\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	inputs := []string{
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"sub/index","type":"Fact","title":"Sub Index","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"sub/index.md","type":"Fact","title":"Sub Index MD","description":"Desc"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != 2 {
+		t.Fatalf("Expected 2 responses, got %d", len(responses))
+	}
+
+	for i, r := range responses {
+		rMap, ok := r.Result.(map[string]any)
+		if !ok {
+			t.Fatalf("Response %d has unexpected result type: %T", i+1, r.Result)
+		}
+		if isError, _ := rMap["isError"].(bool); !isError {
+			t.Errorf("Expected response %d to have isError: true, got: %+v", i+1, rMap)
+		}
+	}
+}
+
 func TestMCPUnknownMethodAndParseError(t *testing.T) {
 	inputs := []string{
 		`invalid json line`,
@@ -282,6 +428,41 @@ func TestMCPCreate_PathTraversalDenied(t *testing.T) {
 	escapedFile := filepath.Join(tmpDir, "escaped.md")
 	if _, err := os.Stat(escapedFile); !os.IsNotExist(err) {
 		t.Fatalf("Security failure: %s was created outside bundle via MCP!", escapedFile)
+	}
+}
+
+func TestMCPCreate_ValidationAndReservedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	bundleDir := filepath.Join(tmpDir, "bundle")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Bundle\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	inputs := []string{
+		// 1. Missing required field 'type'
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"valid-id","title":"Title","description":"Desc"}}}`,
+		// 2. Whitespace-only 'title'
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"valid-id","type":"Fact","title":"   ","description":"Desc"}}}`,
+		// 3. Attempt to create AGENTS.md
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"AGENTS","type":"Fact","title":"Agents","description":"Desc"}}}`,
+		// 4. Attempt to create AGENTS.md with lower case
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"agents.md","type":"Fact","title":"Agents","description":"Desc"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != len(inputs) {
+		t.Fatalf("Expected %d responses, got %d", len(inputs), len(responses))
+	}
+
+	for i, r := range responses {
+		rMap, ok := r.Result.(map[string]any)
+		if !ok {
+			t.Fatalf("Response %d has unexpected result type: %T", i+1, r.Result)
+		}
+		isError, _ := rMap["isError"].(bool)
+		if !isError {
+			t.Errorf("Expected response %d to have isError: true, got: %+v", i+1, rMap)
+		}
 	}
 }
 

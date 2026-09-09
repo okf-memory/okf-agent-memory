@@ -32,7 +32,8 @@ Your mission is not to make code run, but to **systematically discover vulnerabi
 - [ ] **Reserved Files Protection**:
   - Is it impossible to overwrite critical root files (`index.md`, `log.md`, `AGENTS.md`) as concept documents?
 - [ ] **File Permissions**:
-  - Are files created with at most `0o644` and directories with `0o755`? Never allow `0o777`.
+  - Are files created with at most `0o644` (rw-r--r--) and directories with `0o755` (rwxr-xr-x)? Never allow `0o777`.
+  - *Note on Static Analysis*: Standard repo documents must remain readable by collaborators, CI runners, and Git sub-processes. Static analysis rules expecting daemon-private permissions (e.g. `gosec G301/G306`) are excluded because OKF bundles are collaborative version-controlled knowledge bases, not secret credential stores.
 
 ### Area B: MCP & Agent Interfaces (Indirect Prompt Injection & Confinement)
 - [ ] **MCP Server Root Confinement**:
@@ -81,6 +82,8 @@ To complement pre-release gates with proactive, continuous discovery, **Google J
 ```markdown
 You are acting as an Adversarial Security Specialist for the okf-agent-memory repository.
 
+Target Branch: Always branch off and open pull requests against `develop`.
+
 Task:
 1. Review all recent code modifications in `pkg/okf` and `cmd/okf` against the criteria in `docs/SECURITY_AUDIT.md`.
 2. Pay special attention to:
@@ -90,5 +93,32 @@ Task:
 3. Write adversarial unit tests in `pkg/okf/mutate_security_test.go` or `cmd/okf/mcp_test.go` attempting to bypass boundary checks.
 4. If you discover a vulnerability or code health improvement:
    - Provide a minimal reproducible test case.
-   - Open a Pull Request or Issue detailing the finding, severity, and suggested remediation.
+   - Open a Pull Request against `develop` detailing:
+     * Finding & CWE Category
+     * Exploitation Scenario / Risk
+     * Implemented Remediation & Tests Added
 ```
+
+### Daily Integration Workflow (Maintainer / Reviewer)
+
+When Jules finishes an audit session and opens a branch / PR:
+
+1. **List Open Jules Branches**:
+   ```bash
+   make jules-list
+   ```
+2. **Review & Verify in Isolated Worktree**:
+   ```bash
+   make jules-review
+   # or for a specific branch: make jules-review BRANCH=<branch-name>
+   ```
+   *Automatically checks out the latest (or specified) Jules branch in an isolated temporary Git worktree, runs `make check`, and shows the compact diff against `develop`.*
+3. **Inspect for Edge Cases & False Positives**:
+   *Check that valid concepts (e.g. nested subfolders) are not inadvertently blocked.*
+4. **Merge & Clean Up**:
+   ```bash
+   make jules-merge
+   # or for a specific branch: make jules-merge BRANCH=<branch-name>
+   git push origin develop
+   git push origin --delete <jules-branch-name>
+   ```

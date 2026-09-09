@@ -743,6 +743,7 @@ func main() {
 	}
 
 	monolithPath := filepath.Join(resolvedDataDir, "MONOLITH_DOCS.md")
+	// #nosec G304 -- benchmark input file path
 	monolithBytes, err := os.ReadFile(monolithPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[!] Could not read %s: %v\n", monolithPath, err)

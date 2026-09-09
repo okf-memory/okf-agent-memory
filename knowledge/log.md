@@ -1,5 +1,10 @@
 ## 2026-09-08
-* **Release**: Prepared version v0.1.4 — Cross-Platform & Spec Alignment Maintenance Release resolving Windows relative link resolution (#6), accepting spec-valid open actor prefixes without warning (#5), allowing dot-directory bundle root scans (#4), and streamlining the Makefile test and lint pipeline.
+* **Update**: Linked `architecture/layers.md` and `convention/contributing.md` to `convention/coding-standards.md`.
+* **Creation**: Documented concept `convention/coding-standards.md` (Engineering & Coding Best Practices (Clean Code, TDD, DRY)).
+* **Update**: Linked `convention/contributing.md` to `convention/security-audit.md` (Continuous security audit expectations and integration pipeline).
+* **Update**: Updated `architecture/security-boundaries.md` documenting case-insensitive reserved root file protection and collaborative file permission rationale (`0o644`/`0o755`).
+* **Creation**: Documented concept `convention/security-audit.md` (Automated Security Auditing & Jules Remediation Workflow).
+* **Release**: Published version v0.1.4 — Cross-Platform & Spec Alignment Maintenance Release resolving Windows relative link resolution (#6), accepting spec-valid open actor prefixes without warning (#5), allowing dot-directory bundle root scans (#4), and streamlining the Makefile test and lint pipeline.
 * **Release**: Published version v0.1.3 — Security Hardening Release resolving path traversal in concept creation/bookkeeping (reported by @djmaze), symlink following (LFI/overwrite), MCP server root confinement, YAML metadata smuggling, and establishing the continuous adversarial security audit framework.
 * **Update**: Linked `architecture/security-boundaries.md` to `convention/mcp-agent-safety.md` (Behavioral MCP guidelines complement deterministic boundaries).
 * **Update**: Updated concept `architecture/security-boundaries.md`.

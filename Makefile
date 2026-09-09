@@ -1,4 +1,4 @@
-.PHONY: all build build-benchmark install test fmt vet lint vuln audit-security validate validate-examples validate-all check release dist-bundle benchmark clean help
+.PHONY: all build build-benchmark install test fmt vet lint vuln audit-security jules-list jules-review jules-merge validate validate-examples validate-all check release dist-bundle benchmark clean help
 
 BIN := bin/okf
 BUNDLE := knowledge
@@ -38,12 +38,24 @@ lint:
 ## audit-security: Run automated security analysis (gosec and govulncheck)
 audit-security:
 	@echo "==> Running security checks..."
-	@which gosec > /dev/null && gosec -quiet -exclude-dir=examples ./... || echo "gosec: optional (install via: go install github.com/securego/gosec/v2/cmd/gosec@latest)"
+	@which gosec > /dev/null && gosec -quiet -exclude=G301,G306 -exclude-dir=examples ./... || echo "gosec: optional (install via: go install github.com/securego/gosec/v2/cmd/gosec@latest)"
 	@which govulncheck > /dev/null && govulncheck ./... || echo "govulncheck: optional (install via: go install golang.org/x/vuln/cmd/govulncheck@latest)"
 
 ## vuln: Run govulncheck vulnerability scanner directly
 vuln:
 	@govulncheck ./...
+
+## jules-list: List open Google Jules security audit branches on origin
+jules-list:
+	@./scripts/jules-flow.sh list
+
+## jules-review: Build, test, and review latest or specified Jules branch (BRANCH=<name>) in an isolated worktree
+jules-review:
+	@./scripts/jules-flow.sh review $(BRANCH)
+
+## jules-merge: Merge verified Jules remediation branch into develop (BRANCH=<name>)
+jules-merge:
+	@./scripts/jules-flow.sh merge $(BRANCH)
 
 ## ----------------------------------------------------------------------
 ## Build & OKF Knowledge Validation
@@ -120,6 +132,9 @@ help:
 	@echo "  make vet               Run go vet static analysis"
 	@echo "  make lint              Run golangci-lint (fallback: go vet)"
 	@echo "  make audit-security    Run automated security audit (gosec, govulncheck)"
+	@echo "  make jules-list        List open Jules security branches on origin"
+	@echo "  make jules-review      Run isolated build & test of latest Jules branch"
+	@echo "  make jules-merge       Merge verified Jules branch into develop"
 	@echo ""
 	@echo "Build & Knowledge:"
 	@echo "  make build             Compile bin/okf executable"

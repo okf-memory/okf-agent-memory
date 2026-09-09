@@ -793,3 +793,75 @@ Content of A.
 		}
 	}
 }
+
+func TestBuildGraph_NestedAgentsConceptAndRootReservedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	rootIndex := "---\nokf_version: \"0.2\"\n---\n# Knowledge Base\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "index.md"), []byte(rootIndex), 0o644); err != nil {
+		t.Fatalf("WriteFile index.md: %v", err)
+	}
+
+	decisionsDir := filepath.Join(tmpDir, "decisions")
+	if err := os.MkdirAll(decisionsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll decisions: %v", err)
+	}
+
+	// decisions/agents.md is a perfectly legitimate nested concept
+	agentsConcept := `---
+type: Concept
+title: Agent Workers
+description: How agents work.
+generated: { by: agent/test, at: 2026-09-08T08:00:00Z }
+---
+# Agent Workers
+Details about agents.
+`
+	if err := os.WriteFile(filepath.Join(decisionsDir, "agents.md"), []byte(agentsConcept), 0o644); err != nil {
+		t.Fatalf("WriteFile agents.md: %v", err)
+	}
+
+	// decisions/caller.md links to decisions/agents.md (valid), but also attempts to link to root AGENTS.md, log.md, and index.md
+	callerConcept := `---
+type: Concept
+title: Caller Concept
+description: Calls agents and navigation.
+generated: { by: agent/test, at: 2026-09-08T08:00:00Z }
+---
+# Caller
+See [Agent Workers](agents.md) for concepts.
+Also invalid navigation: [Root Agents](../AGENTS.md), [Root Log](../log.md), and [Folder Index](index.md).
+`
+	if err := os.WriteFile(filepath.Join(decisionsDir, "caller.md"), []byte(callerConcept), 0o644); err != nil {
+		t.Fatalf("WriteFile caller.md: %v", err)
+	}
+
+	bundle, err := okf.LoadBundle(tmpDir)
+	if err != nil {
+		t.Fatalf("LoadBundle failed: %v", err)
+	}
+
+	// The link from caller to agents must exist in the graph!
+	outbound := bundle.Graph["decisions/caller"]
+	foundNestedLink := false
+	for _, target := range outbound {
+		if target == "decisions/agents" {
+			foundNestedLink = true
+			break
+		}
+	}
+	if !foundNestedLink {
+		t.Errorf("Expected decisions/caller -> decisions/agents link in graph, but got: %v", outbound)
+	}
+
+	// Exactly 3 broken links for navigation: ../AGENTS.md, ../log.md, index.md
+	if len(bundle.BrokenLinks) != 3 {
+		t.Fatalf("Expected 3 broken links for navigation files, got %d: %+v", len(bundle.BrokenLinks), bundle.BrokenLinks)
+	}
+
+	for _, bl := range bundle.BrokenLinks {
+		if !strings.Contains(bl.Reason, "navigation") {
+			t.Errorf("Expected navigation reason for broken link %q, got %q", bl.TargetHref, bl.Reason)
+		}
+	}
+}

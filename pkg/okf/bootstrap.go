@@ -154,6 +154,7 @@ func Bootstrap(targetDir string, opts BootstrapOptions) error {
 			}
 		} else {
 			// Existing AGENTS.md: check and append delimited OKF section without overwriting user rules
+			// #nosec G304 -- agentsMDPath is constructed directly within targetDir
 			existingData, err := os.ReadFile(agentsMDPath)
 			if err == nil {
 				existingStr := string(existingData)
@@ -161,6 +162,7 @@ func Bootstrap(targetDir string, opts BootstrapOptions) error {
 					!strings.Contains(existingStr, "okf-agent-memory") &&
 					!strings.Contains(existingStr, "Open Knowledge Format (OKF)") {
 					newContent := strings.TrimRight(existingStr, "\n") + "\n\n" + defaultOKFAgentsBlock
+					// #nosec G703 -- agentsMDPath is constructed directly within targetDir
 					_ = os.WriteFile(agentsMDPath, []byte(newContent), 0o644)
 				}
 			}

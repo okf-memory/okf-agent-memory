@@ -169,6 +169,7 @@ func LoadBundle(root string) (*Bundle, error) {
 			}
 		}
 
+		// #nosec G122,G304 -- path is strictly within bundle root and symlinks are resolved via ensureWithinRoot
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -192,7 +193,9 @@ func LoadBundle(root string) (*Bundle, error) {
 		}
 
 		if name == "log.md" {
-			b.LogContent = content
+			if rel == "log.md" {
+				b.LogContent = content
+			}
 			return nil
 		}
 
@@ -271,11 +274,11 @@ func (b *Bundle) buildGraph() {
 			targetRel := targetID + ".md"
 			targetBase := path.Base(targetRel)
 
-			if targetBase == "index.md" || targetBase == "log.md" {
+			if strings.EqualFold(targetBase, "index.md") || strings.EqualFold(targetRel, "log.md") || strings.EqualFold(targetRel, "AGENTS.md") {
 				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
 					SourceConcept: concept.Path,
 					TargetHref:    href,
-					Reason:        "reserved index.md/log.md is navigation, not a concept",
+					Reason:        "reserved index.md/log.md/AGENTS.md is navigation, not a concept",
 				})
 				continue
 			}

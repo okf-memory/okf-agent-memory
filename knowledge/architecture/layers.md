@@ -57,3 +57,4 @@ The version-controlled `knowledge/` directory holding the actual durable concept
 
 # Related Concepts
 - [Bundle Isolation and Mutation Security Boundaries](security-boundaries.md): Layer 4 tooling enforces security boundaries and bundle isolation
+- [Engineering & Coding Best Practices (Clean Code, TDD, DRY)](../convention/coding-standards.md): Coding standards governing Layer 4 Go tooling development
