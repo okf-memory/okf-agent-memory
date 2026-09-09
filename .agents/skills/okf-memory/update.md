@@ -59,18 +59,30 @@ Human instructions always take precedence over agent inferences:
 
 ## 4. Updating Concepts with Tooling
 
-Use `okf update` to mutate metadata, description, and automatically maintain log entries:
+Use `okf_update` (MCP) or `okf update` (CLI) to mutate metadata, description, or body with automatic log bookkeeping:
 
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_update
+{
+  "concept_id": "architecture/auth",
+  "title": "Authentication Architecture (RS256)",
+  "description": "Updated to RS256 asymmetric keys with JWKS endpoint.",
+  "body": "Updated markdown body content..."
+}
+```
+
+#### Option B: CLI Fallback
 ```bash
-# Human-readable update
-okf update architecture/auth knowledge \
-  --desc "Updated to RS256 asymmetric keys with JWKS endpoint." \
-  --title "Authentication Architecture (RS256)"
-
 # Agent JSON mode
 okf update architecture/auth knowledge \
   --desc "Updated to RS256 asymmetric keys with JWKS endpoint." \
   --json
+
+# Human-readable update
+okf update architecture/auth knowledge \
+  --desc "Updated to RS256 asymmetric keys with JWKS endpoint." \
+  --title "Authentication Architecture (RS256)"
 ```
 
 **JSON Output Example**:
@@ -94,6 +106,6 @@ okf update architecture/auth knowledge \
 ## 5. Post-Update Checklist
 
 After updating any concept:
-- [ ] Has `knowledge/log.md` been updated with a dated entry? (Automatic with `okf update`).
+- [ ] Has `knowledge/log.md` been updated with a dated entry? (Automatic with `okf_update` / `okf update`).
 - [ ] Have you checked for orphaned links or concepts that depended on the old behavior?
-- [ ] Run `okf validate knowledge --strict --drift` to verify zero errors or broken links.
+- [ ] Run `okf_validate(strict=true)` or `okf validate knowledge --strict --drift` to verify zero errors or broken links.

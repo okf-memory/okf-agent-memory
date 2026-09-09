@@ -30,17 +30,28 @@ Relationships should represent meaningful semantic connections between distinct 
 
 ## 3. Creating Relationships with Tooling
 
-Use `okf relate` to link two concepts deterministically with automatic frontmatter and markdown updates:
+Use `okf_relate` (MCP) or `okf relate` (CLI) to link two concepts deterministically with automatic frontmatter and markdown updates:
 
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_relate
+{
+  "source_id": "decisions/adr-001",
+  "target_id": "architecture/database",
+  "description": "implements connection pooling strategy"
+}
+```
+
+#### Option B: CLI Fallback
 ```bash
-# Human-readable relate
-okf relate decisions/adr-001 architecture/database knowledge \
-  --desc "implements connection pooling strategy"
-
 # Agent JSON mode
 okf relate decisions/adr-001 architecture/database knowledge \
   --desc "implements connection pooling strategy" \
   --json
+
+# Human-readable relate
+okf relate decisions/adr-001 architecture/database knowledge \
+  --desc "implements connection pooling strategy"
 ```
 
 **JSON Output Example**:
@@ -65,9 +76,9 @@ Whenever links are added or removed:
 1. **Check for Broken Links**: Every link target must resolve to a valid concept path or ID within the bundle.
 2. **Check for Orphaned Concepts**: Ensure key concepts are reachable from index files or related concepts.
 3. **Run Strict Validation**:
-   ```bash
-   okf validate knowledge --strict
-   ```
+   - Native MCP Tool: `okf_validate(strict=true)`
+   - CLI Fallback: `okf validate knowledge --strict`
+
    Strict validation ensures:
    - 0 broken links / dangling pointers
    - 0 orphaned concepts

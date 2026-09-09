@@ -10,25 +10,48 @@ This document demonstrates complete end-to-end memory workflows across three dis
 An agent investigates a production bug involving connection pool exhaustion, discovers the root cause, persists an Architecture Decision Record (ADR), and links it to the database architecture.
 
 ### Step 1: Search Existing Knowledge
-```bash
-okf search "database connection" knowledge --json
-```
+- **Native MCP (Preferred)**: `okf_search(query="database connection", limit=3)`
+- **CLI Fallback**:
+  ```bash
+  okf search "database connection" knowledge --limit 3 --json
+  ```
 
 ### Step 2: Create the ADR Concept
-```bash
-okf create decisions/adr-008-connection-pooling knowledge \
-  --type "Decision" \
-  --title "ADR-008: HikariCP Connection Pool Sizing" \
-  --desc "Configures HikariCP with max 20 connections and 30s timeout to prevent RDS pool exhaustion." \
-  --json
-```
+- **Native MCP (Preferred)**:
+  ```json
+  // Tool: okf_create
+  {
+    "concept_id": "decisions/adr-008-connection-pooling",
+    "type": "Decision",
+    "title": "ADR-008: HikariCP Connection Pool Sizing",
+    "description": "Configures HikariCP with max 20 connections and 30s timeout to prevent RDS pool exhaustion."
+  }
+  ```
+- **CLI Fallback**:
+  ```bash
+  okf create decisions/adr-008-connection-pooling knowledge \
+    --type "Decision" \
+    --title "ADR-008: HikariCP Connection Pool Sizing" \
+    --desc "Configures HikariCP with max 20 connections and 30s timeout to prevent RDS pool exhaustion." \
+    --json
+  ```
 
 ### Step 3: Link ADR to Core Database Concept
-```bash
-okf relate decisions/adr-008-connection-pooling architecture/database knowledge \
-  --desc "configures connection pool parameters for primary database" \
-  --json
-```
+- **Native MCP (Preferred)**:
+  ```json
+  // Tool: okf_relate
+  {
+    "source_id": "decisions/adr-008-connection-pooling",
+    "target_id": "architecture/database",
+    "description": "configures connection pool parameters for primary database"
+  }
+  ```
+- **CLI Fallback**:
+  ```bash
+  okf relate decisions/adr-008-connection-pooling architecture/database knowledge \
+    --desc "configures connection pool parameters for primary database" \
+    --json
+  ```
 
 ### Resulting Concept File (`knowledge/decisions/adr-008-connection-pooling.md`):
 ```markdown
@@ -114,9 +137,11 @@ okf relate books/thinking-fast-and-slow topics/cognitive-biases knowledge \
 
 ### Step 3: Discover Across the Knowledge Graph
 When asked *"Which books discuss cognitive biases?"*, the agent runs:
-```bash
-okf search "cognitive biases" knowledge --json
-```
+- **Native MCP (Preferred)**: `okf_search(query="cognitive biases")`
+- **CLI Fallback**:
+  ```bash
+  okf search "cognitive biases" knowledge --json
+  ```
 The result returns both the `topics/cognitive-biases` concept and `books/thinking-fast-and-slow` via its outward relationship, answering the question without needing conversation history.
 
 ---
@@ -124,9 +149,17 @@ The result returns both the `topics/cognitive-biases` concept and `books/thinkin
 ## Example 4: Validating the Bundle
 
 Always ensure strict bundle conformance at the end of every workflow:
-```bash
-okf validate knowledge --strict --drift
-```
+- **Native MCP (Preferred)**:
+  ```json
+  // Tool: okf_validate
+  {
+    "strict": true
+  }
+  ```
+- **CLI Fallback**:
+  ```bash
+  okf validate knowledge --strict --drift
+  ```
 Output:
 ```
 OKF v0.2 check of "knowledge" (v0.2): 7 concept(s), 0 error(s), 0 warning(s); 0 broken link(s), 0 orphan(s), 0 stale [--strict]. Conformant.

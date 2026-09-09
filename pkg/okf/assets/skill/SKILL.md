@@ -15,27 +15,31 @@ Every agent operating in this repository MUST obey the following contract:
 
 1. **Persistent knowledge lives in the OKF corpus**: Conversations are temporary; the `knowledge/` directory survives.
 2. **Search Before Write**: Always query existing knowledge before authoring new concepts.
-3. **No Blanket Scans**: Never use `list_dir`, `grep`, or dump `knowledge/` in bulk. Query via `okf search` and load concepts on demand via `okf show`.
-4. **Prefer Update Over Duplication**: Expand existing concepts when related facts emerge.
-5. **No Conversational Noise**: Never store scratchpads, raw chain-of-thought, or speculative chatter.
-6. **Preserve Trust & Provenance**: Always record `sources` and `generated: { by, at }`. Never mark AI content as `human:` verified.
-7. **End-of-Task Review**: Perform a knowledge review after completing substantial work.
-8. **Always Validate**: Ensure `make validate` or `okf validate` passes with 0 errors and 0 warnings.
+3. **No Blanket Scans**: Never use `list_dir`, `grep`, or dump `knowledge/` in bulk. Query via `okf_search` (or `okf search`) and load concepts on demand via `okf_show` (or `okf show`).
+4. **Prefer Native MCP Tools**: When available, always prefer `okf_*` MCP tools over CLI commands to minimize token/context overhead and avoid shell prompts.
+5. **Prefer Update Over Duplication**: Expand existing concepts when related facts emerge.
+6. **No Conversational Noise**: Never store scratchpads, raw chain-of-thought, or speculative chatter.
+7. **Preserve Trust & Provenance**: Always record `sources` and `generated: { by, at }`. Never mark AI content as `human:` verified.
+8. **End-of-Task Review**: Perform a knowledge review after completing substantial work.
+9. **Always Validate**: Ensure `okf_validate(strict=true)` or `okf validate knowledge --strict --drift` passes with 0 errors and 0 warnings.
 
 ---
 
-## 2. Tooling Commands Reference
+## 2. Tooling Reference (Dual-Mode: MCP & CLI)
 
-Use the `okf` CLI or Makefile targets for deterministic operations:
+Operations support both native MCP tools and deterministic CLI commands. **Always prefer MCP tools when available** because they execute in-process with zero terminal overhead, minimal context consumption, and structured JSON returns.
 
-| Task | Command | JSON Mode for Agents |
+| Task | Preferred: Native MCP Tool | Fallback: Deterministic CLI (`--json`) |
 | :--- | :--- | :--- |
-| **Search Knowledge** | `okf search "<query>" knowledge` | `okf search "<query>" knowledge --json` |
-| **Inspect Concept** | `okf show <concept-id> knowledge` | `okf show <concept-id> knowledge --json` |
-| **Create Concept** | `okf create <id> knowledge --type <type> --title "<title>" --desc "<summary>"` | Add `--json` |
-| **Update Concept** | `okf update <id> knowledge --desc "<new-summary>"` | Add `--json` |
-| **Relate Concepts** | `okf relate <src-id> <target-id> knowledge --desc "<prose>"` | Add `--json` |
-| **Validate Bundle** | `okf validate knowledge --strict --drift` | Add `--json` |
+| **Search Knowledge** | `okf_search(query="<query>", limit=3)` | `okf search "<query>" knowledge --limit 3 --json` |
+| **Inspect Concept** | `okf_show(concept_id="<id>")` | `okf show <id> knowledge --json` |
+| **Create Concept** | `okf_create(concept_id="<id>", type="<type>", title="<title>", description="<desc>")` | `okf create <id> knowledge --type <type> --title "<title>" --desc "<desc>" --json` |
+| **Update Concept** | `okf_update(concept_id="<id>", description="<desc>", title="<title>")` | `okf update <id> knowledge --desc "<desc>" --json` |
+| **Relate Concepts** | `okf_relate(source_id="<src>", target_id="<tgt>", description="<prose>")` | `okf relate <src> <tgt> knowledge --desc "<prose>" --json` |
+| **Validate Bundle** | `okf_validate(strict=true)` | `okf validate knowledge --strict --drift --json` |
+
+> [!TIP]
+> Both interfaces default to `./knowledge`. For custom or multi-bundle setups, pass the optional `bundle` argument (e.g. `okf_search(query="...", bundle="path/to/bundle")` or `okf search "..." path/to/bundle`).
 
 ---
 

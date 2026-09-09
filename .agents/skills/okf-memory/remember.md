@@ -62,21 +62,34 @@ Do not convert an educated guess into an established fact without qualification:
 
 ## 5. Creating Concepts with Tooling
 
-Use `okf create` to scaffold conformant concepts with automatic frontmatter, timestamps, and log bookkeeping:
+Use `okf_create` (MCP) or `okf create` (CLI) to scaffold conformant concepts with automatic frontmatter, timestamps, and log bookkeeping:
 
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_create
+{
+  "concept_id": "architecture/caching",
+  "type": "Architecture",
+  "title": "Distributed Caching Strategy",
+  "description": "Redis cluster configuration for session storage and query caching.",
+  "body": "Optional initial markdown content..."
+}
+```
+
+#### Option B: CLI Fallback
 ```bash
-# Human-readable create
-okf create architecture/caching knowledge \
-  --type "Architecture" \
-  --title "Distributed Caching Strategy" \
-  --desc "Redis cluster configuration for session storage and query caching."
-
 # Agent JSON mode
 okf create architecture/caching knowledge \
   --type "Architecture" \
   --title "Distributed Caching Strategy" \
   --desc "Redis cluster configuration for session storage and query caching." \
   --json
+
+# Human-readable create
+okf create architecture/caching knowledge \
+  --type "Architecture" \
+  --title "Distributed Caching Strategy" \
+  --desc "Redis cluster configuration for session storage and query caching."
 ```
 
 **JSON Output Example**:
@@ -103,4 +116,4 @@ After completing any significant coding or research session, ask:
 1. Did I make or encounter an architectural choice? $\rightarrow$ Record in `knowledge/architecture/` or `knowledge/decisions/`.
 2. Did I discover a non-obvious solution or constraint? $\rightarrow$ Record under relevant concept.
 3. Did I write raw scratchpads or chat noise? $\rightarrow$ **Clean up and delete them.**
-4. Did I run `okf validate knowledge --strict`? $\rightarrow$ Ensure 0 errors.
+4. Did I validate conformance? $\rightarrow$ Run `okf_validate(strict=true)` or `okf validate knowledge --strict --drift` and ensure 0 errors.

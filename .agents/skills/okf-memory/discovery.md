@@ -11,14 +11,15 @@ Before writing code, making architectural choices, or adding new memory concepts
 2. **Reuse & Extend**: If a concept already covers the topic, update it instead of creating duplicates.
 3. **Verify Context**: Inspect existing constraints, requirements, and past decisions.
 
-```
-Incoming Task
-     │
-     ▼
-[ okf search "<query>" ] ──▶ Found matching concept? ──▶ YES ──▶ [ okf show <id> ] ──▶ Update existing
-     │                                                                                       │
-     ▼ NO                                                                                    │
-[ okf create <id> ] ◀────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Task["Incoming Task"] --> Search["Search Knowledge<br/><code>okf_search</code> / <code>okf search</code>"]
+    Search --> Match{"Matching Concept<br/>Found?"}
+    Match -- Yes --> Inspect["Inspect Details<br/><code>okf_show</code> / <code>okf show</code>"]
+    Inspect --> Update["Update Existing Concept<br/><code>okf_update</code> / <code>okf update</code>"]
+    Match -- No --> Create["Create New Concept<br/><code>okf_create</code> / <code>okf create</code>"]
+    Update -.-> Relate["Link Related Concepts<br/><code>okf_relate</code> / <code>okf relate</code>"]
+    Create -.-> Relate
 ```
 
 ---
@@ -27,42 +28,49 @@ Incoming Task
 
 To prevent blowing up the LLM context window with large repositories, follow the **Progressive Disclosure** pattern:
 
-```
-Level 1: Bundle Root (knowledge/index.md + log.md)
-   │     Quick orientation on bundle scope & recent changes
-   ▼
-Level 2: Fast In-Memory Search (okf search "<query>")
-   │     Targeted BM25 keyword/relevance match across concepts
-   ▼
-Level 3: Concept Inspection (okf show <id>)
-   │     Detailed inspection of frontmatter, body, and direct graph links
-   ▼
-Level 4: Follow Graph References
-         Traverse related concepts only when deeper context is required
+```mermaid
+flowchart TD
+    L1["Level 1: Bundle Root<br/><code>knowledge/index.md</code> + <code>log.md</code><br/><i>Scope & recent changes</i>"]
+    L2["Level 2: Fast Search<br/><code>okf_search</code> / <code>okf search</code><br/><i>BM25 keyword/relevance match</i>"]
+    L3["Level 3: Concept Inspection<br/><code>okf_show</code> / <code>okf show</code><br/><i>Frontmatter, body & direct links</i>"]
+    L4["Level 4: Graph Traversal<br/><i>Follow links only when deeper context is required</i>"]
+
+    L1 --> L2 --> L3 --> L4
 ```
 
 ### Context Rules & Negative Constraints
 - **NO Blanket Scans**: Never run `list_dir`, `grep_search`, or `view_file` over the entire `knowledge/` folder.
-- **Search First, Load on Demand**: Always run `okf search "<query>" --limit 3 --json` to get lightweight metadata.
-- **Selective Inspection**: Read the 1-sentence `description` in search hits first; only fetch the full body with `okf show <id>` if the concept is genuinely needed.
+- **Prefer Native MCP Tools**: Use `okf_search` and `okf_show` if available. MCP tool calls avoid subshell spawning, execute in-process, and consume significantly less context tokens than CLI output.
+- **Search First, Load on Demand**: Always run `okf_search(query="<query>", limit=3)` (or `okf search "<query>" knowledge --limit 3 --json`) to get lightweight metadata.
+- **Selective Inspection**: Read the 1-sentence `description` in search hits first; only fetch the full body with `okf_show(concept_id="<id>")` (or `okf show <id>`) if the concept is genuinely needed.
 - **Task Relevance**: Do not proactively scan `knowledge/` for trivial code tasks unless relevant to architectural decisions, requirements, or explicitly requested.
 
 ---
 
-## 3. Search & Inspection Commands
+## 3. Search & Inspection Reference
 
 ### Search the Corpus
 Execute fast in-memory BM25 searches across concept titles, IDs, descriptions, and bodies:
 
-```bash
-# Human-readable search
-okf search "authentication jwt" knowledge
-
-# Agent JSON mode (structured output with scores & snippets)
-okf search "authentication jwt" knowledge --json
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_search
+{
+  "query": "authentication jwt",
+  "limit": 3
+}
 ```
 
-**JSON Output Example**:
+#### Option B: CLI Fallback
+```bash
+# Agent JSON mode (structured output with scores & snippets)
+okf search "authentication jwt" knowledge --limit 3 --json
+
+# Human-readable search
+okf search "authentication jwt" knowledge
+```
+
+**Output Example**:
 ```json
 {
   "query": "authentication jwt",
@@ -84,12 +92,21 @@ okf search "authentication jwt" knowledge --json
 ### Inspect Concept Details
 Retrieve a single concept with its metadata, parsed frontmatter, and outward/inward links:
 
-```bash
-# Human-readable show
-okf show architecture/auth knowledge
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_show
+{
+  "concept_id": "architecture/auth"
+}
+```
 
+#### Option B: CLI Fallback
+```bash
 # Agent JSON mode
 okf show architecture/auth knowledge --json
+
+# Human-readable show
+okf show architecture/auth knowledge
 ```
 
 **JSON Output Example**:
@@ -121,7 +138,7 @@ okf show architecture/auth knowledge --json
 ## 4. Discovery Checklist for Agents
 
 When starting any new task, run through this quick checklist:
-- [ ] Have I searched for keywords related to the feature or bug (`okf search "<keywords>"`?
+- [ ] Have I searched for keywords related to the feature or bug (`okf_search` or `okf search "<keywords>"`)?
 - [ ] Is there an existing decision or constraint that restricts this implementation?
 - [ ] Is any relevant concept marked with `status: deprecated` or has an expired `stale_after` date?
 - [ ] If found, did I inspect the related concepts linked in its graph?
