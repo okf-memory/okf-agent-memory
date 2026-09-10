@@ -89,7 +89,8 @@ func ValidateConceptID(id string) error {
 		return fmt.Errorf("invalid concept ID %q", id)
 	}
 
-	if filepath.IsAbs(cleanID) || strings.HasPrefix(cleanID, "/") || strings.HasPrefix(cleanID, "\\") {
+	if filepath.IsAbs(cleanID) || strings.HasPrefix(cleanID, "/") || strings.HasPrefix(cleanID, "\\") ||
+		(len(cleanID) >= 2 && cleanID[1] == ':' && ((cleanID[0] >= 'a' && cleanID[0] <= 'z') || (cleanID[0] >= 'A' && cleanID[0] <= 'Z'))) {
 		return fmt.Errorf("concept ID %q must be a relative path", id)
 	}
 

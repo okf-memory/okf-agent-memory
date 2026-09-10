@@ -653,3 +653,72 @@ func TestSaveConceptActorWhitespaceFallback(t *testing.T) {
 		t.Errorf("Expected trimmed actor 'agent/custom', got %+v", c2.Generated)
 	}
 }
+
+// TestValidateConceptIDAdversarialTraversal verifies edge-case path traversal attempts in ValidateConceptID.
+func TestValidateConceptIDAdversarialTraversal(t *testing.T) {
+	adversarialIDs := []string{
+		"a/b/../../..",
+		"a/b/../../../etc/passwd",
+		"concepts/../../log",
+		"concepts/../../AGENTS",
+		"concepts/../../index",
+		"C:\\Windows\\System32",
+		"\\\\unc\\share\\file",
+		"concepts/..\\..\\evil",
+		"sub/./../../escaped",
+	}
+
+	for _, id := range adversarialIDs {
+		if err := ValidateConceptID(id); err == nil {
+			t.Errorf("ValidateConceptID(%q) expected error for adversarial ID, got nil", id)
+		}
+	}
+}
+
+// TestSaveConceptAdversarialFrontmatterDelimiterInjection verifies that SaveConcept
+// blocks frontmatter delimiter injection in all frontmatter string fields.
+func TestSaveConceptAdversarialFrontmatterDelimiterInjection(t *testing.T) {
+	bundleDir := t.TempDir()
+	if err := InitBundle(bundleDir); err != nil {
+		t.Fatalf("InitBundle failed: %v", err)
+	}
+
+	fieldsToTest := []struct {
+		name    string
+		concept *Concept
+	}{
+		{
+			name: "delimiter in type",
+			concept: &Concept{
+				Path:  "c1.md",
+				Type:  "Fact\n---\ninjected: true",
+				Title: "Title",
+			},
+		},
+		{
+			name: "delimiter in title",
+			concept: &Concept{
+				Path:  "c2.md",
+				Type:  "Fact",
+				Title: "Title\n---",
+			},
+		},
+		{
+			name: "delimiter in description",
+			concept: &Concept{
+				Path:        "c3.md",
+				Type:        "Fact",
+				Title:       "Title",
+				Description: "Desc\n---\nkey: val",
+			},
+		},
+	}
+
+	for _, tc := range fieldsToTest {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := SaveConcept(bundleDir, tc.concept, true, false, false, "attacker"); err == nil {
+				t.Errorf("SaveConcept: expected error when frontmatter contains delimiter, got nil")
+			}
+		})
+	}
+}
