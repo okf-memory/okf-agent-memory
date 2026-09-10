@@ -71,6 +71,8 @@ handle format correctness.
 ### In Progress / Next Milestones
 
 - [ ] Community feedback and broader ecosystem adoption.
+- [ ] RFC: Hierarchical & Multi-Scope Memory (`scope: project` vs `scope: user`, Issue #11).
+- [ ] RFC: Federated Knowledge & Remote Vendoring (`https://` & `mcp://` scopes).
 - [ ] Automated migration tools for legacy ad-hoc markdown files.
 - [ ] Extended MCP client ecosystem recipes.
 
@@ -536,3 +538,31 @@ The ultimate test is:
 > repository and its OKF knowledge corpus alone?
 
 If yes, the project has achieved its primary goal.
+
+---
+
+# 17. Future Horizon: Community RFCs & Federated Memory
+
+As OKF Agent Memory reaches core stability with OKF v0.2, the next frontier focuses on **hierarchical, multi-scope, and federated agent memory**. In the spirit of open-source collaborative architecture, we invite the community to discuss, prioritize, and shape these capabilities:
+
+### RFC 1: Hierarchical Multi-Scope Memory (User vs. Project Bundles)
+* **Motivation:** Agents (Claude Code, Cursor, Antigravity) frequently operate across both personal/global memory (`~/.config/okf/knowledge`) and repo-specific memory (`./knowledge`).
+* **Key Questions:**
+  1. *Layered Stack Model (`scope`):* Defining an ordered hierarchy (`scope: project` > `scope: team` > `scope: user` > `scope: system`) where only the local project is writable by default.
+  2. *Conflict Resolution ("Local Beats Global"):* Shadowing identical concept IDs, and attaching scope/priority metadata to search results so agents resolve semantic contradictions predictably.
+  3. *Multi-Root Path Confinement:* Safely accessing multiple declared bundle directories in MCP without breaking CWE-22 sandbox protections.
+* **Discussion Tracker:** [GitHub Issue #11](https://github.com/okf-memory/okf-agent-memory/issues/11).
+
+### RFC 2: Cross-Scope Relationships & Bundle Hermeticity
+* **Motivation:** How can concepts link across bundle boundaries without breaking `--strict` validation in isolated CI/CD pipelines?
+* **Proposal:** Using qualified OKF URIs (`okf://<scope>/<concept-id>`) that remain non-breaking external references during single-bundle CI runs, while enabling deep referential integrity checks during composite local workstation runs (`okf validate --scopes ...`).
+
+### RFC 3: Remote Bundles & Federated Knowledge (`https://` & `mcp://`)
+* **Static Remote Bundles (`https://...`):** A declarative vendoring model (`okf install` / `okf vendor`) to pin and cache remote knowledge packages locally for offline, deterministic BM25 search.
+* **Live Federated MCP Servers (`mcp://...`):** An aggregator/gateway pattern that proxies queries to specialized remote knowledge services (e.g. enterprise docs, vector databases) and merges results using Reciprocal Rank Fusion (RRF).
+
+---
+
+> **Join the Discussion:**  
+> Have thoughts on multi-scope priorities, conflict resolution, or remote knowledge protocols?  
+> Please share your feedback in [GitHub Issue #11](https://github.com/okf-memory/okf-agent-memory/issues/11) or open a new RFC!
