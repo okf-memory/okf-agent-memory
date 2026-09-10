@@ -21,7 +21,7 @@ check: fmt vet lint test validate-all
 
 ## test: Run all Go unit and integration tests
 test:
-	@go test -v ./...
+	@go test -v -race ./...
 
 ## fmt: Format all Go source files with gofumpt / gofmt
 fmt:
