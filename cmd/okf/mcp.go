@@ -242,6 +242,25 @@ func getMCPTools() []map[string]any {
 				},
 				"required": []string{"query"},
 			},
+			"outputSchema": map[string]any{
+				"type":        "array",
+				"description": "Ranked matches (JSON array of search-result objects).",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"concept_id":  map[string]any{"type": "string"},
+						"title":       map[string]any{"type": "string"},
+						"type":        map[string]any{"type": "string"},
+						"description": map[string]any{"type": "string"},
+						"score":       map[string]any{"type": "number"},
+						"matched_on":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"tags":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"inbound":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"outbound":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					},
+					"required": []string{"concept_id", "title", "type", "description", "score", "matched_on"},
+				},
+			},
 		},
 		{
 			"name":        "okf_show",
@@ -256,6 +275,21 @@ func getMCPTools() []map[string]any {
 					"bundle": bundleProp,
 				},
 				"required": []string{"concept_id"},
+			},
+			"outputSchema": map[string]any{
+				"type":        "object",
+				"description": "The concept record (frontmatter fields plus body).",
+				"properties": map[string]any{
+					"id":          map[string]any{"type": "string"},
+					"path":        map[string]any{"type": "string"},
+					"type":        map[string]any{"type": "string"},
+					"title":       map[string]any{"type": "string"},
+					"description": map[string]any{"type": "string"},
+					"tags":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"status":      map[string]any{"type": "string"},
+					"stale_after": map[string]any{"type": "string"},
+				},
+				"required": []string{"id", "path", "type"},
 			},
 		},
 		{
@@ -275,6 +309,21 @@ func getMCPTools() []map[string]any {
 					"bundle": bundleProp,
 				},
 				"required": []string{},
+			},
+			"outputSchema": map[string]any{
+				"type":        "object",
+				"description": "Validation report for the bundle.",
+				"properties": map[string]any{
+					"bundle_path":   map[string]any{"type": "string"},
+					"concept_count": map[string]any{"type": "integer"},
+					"errors":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"warnings":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"orphans":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					"stale_count":   map[string]any{"type": "integer"},
+					"is_conformant": map[string]any{"type": "boolean"},
+					"gate_passed":   map[string]any{"type": "boolean"},
+				},
+				"required": []string{"bundle_path", "concept_count", "errors", "warnings", "is_conformant", "gate_passed"},
 			},
 		},
 		{
@@ -307,6 +356,10 @@ func getMCPTools() []map[string]any {
 				},
 				"required": []string{"concept_id", "type", "title", "description"},
 			},
+			"outputSchema": map[string]any{
+				"type":        "string",
+				"description": "Human-readable confirmation naming the created concept path.",
+			},
 		},
 		{
 			"name":        "okf_update",
@@ -334,6 +387,10 @@ func getMCPTools() []map[string]any {
 				},
 				"required": []string{"concept_id"},
 			},
+			"outputSchema": map[string]any{
+				"type":        "string",
+				"description": "Human-readable confirmation naming the updated concept path.",
+			},
 		},
 		{
 			"name":        "okf_relate",
@@ -356,6 +413,10 @@ func getMCPTools() []map[string]any {
 					"bundle": bundleProp,
 				},
 				"required": []string{"source_id", "target_id"},
+			},
+			"outputSchema": map[string]any{
+				"type":        "string",
+				"description": "Human-readable confirmation naming the linked concepts.",
 			},
 		},
 	}

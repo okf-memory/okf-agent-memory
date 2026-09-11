@@ -91,6 +91,25 @@ func TestMCPHandshakeAndToolsList(t *testing.T) {
 	}
 }
 
+func TestMCPToolsListOutputSchemas(t *testing.T) {
+	// Every tool must advertise an outputSchema so clients can validate
+	// structured results (and typed confirmation strings) without guessing.
+	for _, tool := range getMCPTools() {
+		name, _ := tool["name"].(string)
+		schema, ok := tool["outputSchema"].(map[string]any)
+		if !ok {
+			t.Errorf("Tool %q is missing outputSchema", name)
+			continue
+		}
+		if schema["type"] != "object" && schema["type"] != "array" && schema["type"] != "string" {
+			t.Errorf("Tool %q has unexpected outputSchema type %v", name, schema["type"])
+		}
+		if _, ok := schema["description"].(string); !ok {
+			t.Errorf("Tool %q outputSchema is missing a description", name)
+		}
+	}
+}
+
 func TestMCPNotificationsAreSilent(t *testing.T) {
 	// None of these notifications should produce ANY stdout line
 	inputs := []string{
