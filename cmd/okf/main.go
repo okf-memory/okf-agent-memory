@@ -245,8 +245,10 @@ func cmdSearch(args []string) {
 	var query string
 	if *forPath != "" {
 		if len(positional) == 1 {
-			if info, err := os.Stat(positional[0]); err == nil && info.IsDir() {
-				bundleDir = positional[0]
+			cleanCandidate := filepath.Clean(positional[0])
+			// #nosec G703 -- CLI argument used for bundle directory existence check
+			if info, err := os.Stat(cleanCandidate); err == nil && info.IsDir() {
+				bundleDir = cleanCandidate
 			} else {
 				query = positional[0]
 			}

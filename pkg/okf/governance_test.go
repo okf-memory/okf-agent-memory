@@ -243,6 +243,14 @@ func TestGovernanceAndCodeRefsValidation(t *testing.T) {
 				Governance:  "constraint",
 				CodeRefs:    []string{"pkg/auth/auth.go", "pkg/deleted/old.go"},
 			},
+			"architecture/traversal-ref": {
+				Path:        "architecture/traversal-ref.md",
+				Type:        "architecture",
+				Title:       "Traversal Ref",
+				Description: "Attempts path traversal",
+				Governance:  "constraint",
+				CodeRefs:    []string{"../../etc/passwd", "/etc/shadow"},
+			},
 		},
 		Indexes:      make(map[string]string),
 		Graph:        make(map[string][]string),
@@ -261,6 +269,13 @@ func TestGovernanceAndCodeRefsValidation(t *testing.T) {
 	}
 	if !foundGovError {
 		t.Errorf("expected gate finding for invalid governance, got: %v", res.GateFindings)
+	}
+
+	// Check that path traversal in code_refs produced GateFindings
+	foundTraversalError := slices.Contains(res.GateFindings, "architecture/traversal-ref.md: code_refs '../../etc/passwd' contains forbidden '..' traversal")
+	foundAbsError := slices.Contains(res.GateFindings, "architecture/traversal-ref.md: code_refs '/etc/shadow' must be a relative path")
+	if !foundTraversalError || !foundAbsError {
+		t.Errorf("expected gate findings for traversal and absolute code_refs, got: %v", res.GateFindings)
 	}
 
 	// Check that drift warning was produced for "pkg/deleted/old.go"

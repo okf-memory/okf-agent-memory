@@ -201,6 +201,20 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: governance '%s' is not constraint|hold|context", at, c.Governance))
 		}
 
+		// CodeRefs traversal & boundary validation (CWE-22 prevention)
+		for _, ref := range c.CodeRefs {
+			refTrimmed := strings.TrimSpace(ref)
+			if refTrimmed == "" {
+				continue
+			}
+			cleanRef := filepath.Clean(refTrimmed)
+			if filepath.IsAbs(cleanRef) || strings.HasPrefix(cleanRef, "/") || strings.HasPrefix(cleanRef, "\\") {
+				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: code_refs '%s' must be a relative path", at, refTrimmed))
+			} else if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || strings.HasPrefix(cleanRef, "../") {
+				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: code_refs '%s' contains forbidden '..' traversal", at, refTrimmed))
+			}
+		}
+
 		// Lifecycle validation
 		if c.Status != "" && !validStatuses[c.Status] {
 			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: status '%s' is not draft|stable|deprecated", at, c.Status))
@@ -254,7 +268,14 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 					continue
 				}
 				cleanRef := filepath.Clean(refTrimmed)
+				if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || filepath.IsAbs(cleanRef) {
+					continue
+				}
 				pathInProj := filepath.Join(projectRoot, cleanRef)
+				relProj, errRel := filepath.Rel(projectRoot, pathInProj)
+				if errRel != nil || relProj == ".." || strings.HasPrefix(relProj, ".."+string(filepath.Separator)) {
+					continue
+				}
 				pathInBundle := filepath.Join(bundleAbs, cleanRef)
 				_, errProj := os.Stat(pathInProj)
 				_, errBundle := os.Stat(pathInBundle)
