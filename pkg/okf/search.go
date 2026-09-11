@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // SearchResult represents a scored concept match.
@@ -21,12 +22,19 @@ type SearchResult struct {
 
 func tokenize(s string) []string {
 	f := func(c rune) bool {
-		return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9')
+		asciiDelimiter := (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9')
+		if !asciiDelimiter {
+			return false
+		}
+		if c <= unicode.MaxASCII {
+			return true
+		}
+		return !unicode.IsLetter(c) && !unicode.IsDigit(c)
 	}
 	raw := strings.FieldsFunc(strings.ToLower(s), f)
 	var out []string
 	for _, w := range raw {
-		if len(w) > 1 {
+		if w != "" {
 			out = append(out, w)
 		}
 	}
@@ -174,6 +182,9 @@ func (b *Bundle) Search(query string, limit int) []SearchResult {
 	}
 
 	sort.Slice(results, func(i, j int) bool {
+		if results[i].Score == results[j].Score {
+			return results[i].ConceptID < results[j].ConceptID
+		}
 		return results[i].Score > results[j].Score
 	})
 

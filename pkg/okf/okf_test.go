@@ -111,6 +111,59 @@ func TestSearchEngine(t *testing.T) {
 	}
 }
 
+func TestSearchSupportsUnicodeTerms(t *testing.T) {
+	b := &okf.Bundle{
+		Concepts: map[string]*okf.Concept{
+			"research/tensor": {
+				ID:          "research/tensor",
+				Title:       "Тензорная декомпозиция",
+				Description: "Методы восстановления динамических систем.",
+			},
+		},
+		Graph:        map[string][]string{},
+		InboundGraph: map[string][]string{},
+	}
+
+	results := b.Search("тензорная декомпозиция", 5)
+	if len(results) != 1 || results[0].ConceptID != "research/tensor" {
+		t.Fatalf("Search() = %#v, want research/tensor", results)
+	}
+}
+
+func TestSearchUsesConceptIDToBreakScoreTies(t *testing.T) {
+	b := &okf.Bundle{
+		Concepts: map[string]*okf.Concept{
+			"zeta":  {ID: "zeta", Title: "Shared title"},
+			"alpha": {ID: "alpha", Title: "Shared title"},
+		},
+		Graph:        map[string][]string{},
+		InboundGraph: map[string][]string{},
+	}
+
+	results := b.Search("shared", 1)
+	if len(results) != 1 || results[0].ConceptID != "alpha" {
+		t.Fatalf("Search() top result = %#v, want alpha", results)
+	}
+}
+
+func TestSearchTreatsSingleRuneTermsConsistently(t *testing.T) {
+	b := &okf.Bundle{
+		Concepts: map[string]*okf.Concept{
+			"latin":    {ID: "latin", Title: "A"},
+			"cyrillic": {ID: "cyrillic", Title: "Я"},
+		},
+		Graph:        map[string][]string{},
+		InboundGraph: map[string][]string{},
+	}
+
+	if got := b.Search("a", 1); len(got) != 1 || got[0].ConceptID != "latin" {
+		t.Fatalf("Search(\"a\") = %#v, want latin", got)
+	}
+	if got := b.Search("я", 1); len(got) != 1 || got[0].ConceptID != "cyrillic" {
+		t.Fatalf("Search(\"я\") = %#v, want cyrillic", got)
+	}
+}
+
 func TestMutateAndAutoBookkeeping(t *testing.T) {
 	tmpDir := t.TempDir()
 

@@ -1,6 +1,9 @@
 ## 2026-09-11
 * **Update**: Established Issue-First contribution policy and GitFlow branching strategy designating `develop` as default integration branch for PRs and reserving `main` strictly for tagged releases in `convention/contributing.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, and `docs/RELEASE_PLAYBOOK.md`.
 
+## 2026-09-10
+* **Creation**: Documented concept `architecture/search-tokenization.md` (Unicode and Deterministic Search).
+
 ## 2026-09-09
 * **Release**: Published version v0.1.5 — Adversarial Security & DRY Hardening Release integrating autonomous Google Jules adversarial security loop, boundary symlink containment, central DRY metadata sanitization, actor whitespace fallback, self-relation loop prevention, and Jules workflow automation (`jules-review`, `jules-merge`).
 
