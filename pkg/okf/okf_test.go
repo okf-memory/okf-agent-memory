@@ -249,6 +249,123 @@ func TestRelateConcepts(t *testing.T) {
 	if !strings.Contains(string(data), "[OAuth2 Flow](../auth/oauth.md)") {
 		t.Errorf("gateway.md missing relative link: %s", string(data))
 	}
+
+	if err := okf.RelateConcepts(tmpDir, "services/gateway", "auth/oauth", "verifies incoming tokens", "agent/test"); err != nil {
+		t.Fatalf("second RelateConcepts failed: %v", err)
+	}
+
+	data, err = os.ReadFile(filepath.Join(tmpDir, "services", "gateway.md"))
+	if err != nil {
+		t.Fatalf("Failed to re-read gateway.md: %v", err)
+	}
+	if got := strings.Count(string(data), "[OAuth2 Flow](../auth/oauth.md): verifies incoming tokens"); got != 1 {
+		t.Errorf("relationship appears %d times, want exactly once: %s", got, string(data))
+	}
+
+	logData, err := os.ReadFile(filepath.Join(tmpDir, "log.md"))
+	if err != nil {
+		t.Fatalf("Failed to read log.md: %v", err)
+	}
+	if got := strings.Count(string(logData), "Linked `services/gateway.md` to `auth/oauth.md`"); got != 1 {
+		t.Errorf("relationship log appears %d times, want exactly once: %s", got, string(logData))
+	}
+	if strings.Contains(string(logData), "Updated concept `services/gateway.md`.") {
+		t.Errorf("relation created a redundant generic update log: %s", string(logData))
+	}
+
+	if err := okf.RelateConcepts(tmpDir, "services/gateway", "auth/oauth", "verifies incoming tokens and roles", "agent/test"); err != nil {
+		t.Fatalf("RelateConcepts with a distinct description failed: %v", err)
+	}
+	data, err = os.ReadFile(filepath.Join(tmpDir, "services", "gateway.md"))
+	if err != nil {
+		t.Fatalf("Failed to read gateway.md after distinct relation: %v", err)
+	}
+	if got := strings.Count(string(data), "[OAuth2 Flow](../auth/oauth.md)"); got != 2 {
+		t.Errorf("distinct relationships produced %d links, want 2: %s", got, string(data))
+	}
+
+	c1.Title = "OAuth 2.0 Flow"
+	if err := okf.SaveConcept(tmpDir, c1, false, false, false, "agent/test"); err != nil {
+		t.Fatalf("SaveConcept after title change failed: %v", err)
+	}
+	if err := okf.RelateConcepts(tmpDir, "services/gateway", "auth/oauth", "verifies incoming tokens", "agent/test"); err != nil {
+		t.Fatalf("RelateConcepts after target title change failed: %v", err)
+	}
+	data, err = os.ReadFile(filepath.Join(tmpDir, "services", "gateway.md"))
+	if err != nil {
+		t.Fatalf("Failed to read gateway.md after target title change: %v", err)
+	}
+	if got := strings.Count(string(data), "](../auth/oauth.md)"); got != 2 {
+		t.Errorf("target title change duplicated an existing relationship: %s", string(data))
+	}
+}
+
+func TestRelateConceptsUsesCanonicalRelatedSection(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := okf.InitBundle(tmpDir); err != nil {
+		t.Fatalf("InitBundle failed: %v", err)
+	}
+
+	target := &okf.Concept{Path: "target.md", Type: "Fact", Title: "Target", Body: "# Target"}
+	source := &okf.Concept{
+		Path:  "source.md",
+		Type:  "Fact",
+		Title: "Source",
+		Body:  "# Source\n\n# Related Work\n\nBackground research.",
+	}
+	if err := okf.SaveConcept(tmpDir, target, true, false, false, "agent/test"); err != nil {
+		t.Fatalf("Save target failed: %v", err)
+	}
+	if err := okf.SaveConcept(tmpDir, source, true, false, false, "agent/test"); err != nil {
+		t.Fatalf("Save source failed: %v", err)
+	}
+
+	for i := 0; i < 2; i++ {
+		if err := okf.RelateConcepts(tmpDir, "source", "target", "supports", "agent/test"); err != nil {
+			t.Fatalf("RelateConcepts call %d failed: %v", i+1, err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(tmpDir, "source.md"))
+	if err != nil {
+		t.Fatalf("Read source failed: %v", err)
+	}
+	content := string(data)
+	if strings.Count(content, "# Related Concepts") != 1 || strings.Count(content, "[Target](target.md): supports") != 1 {
+		t.Fatalf("canonical related section is not idempotent: %s", content)
+	}
+
+	source.Body = "# Source\n\n# Related Concepts\n\n- Existing relation\n\n# Notes\n\nKeep this last."
+	if err := okf.SaveConcept(tmpDir, source, false, false, false, "agent/test"); err != nil {
+		t.Fatalf("Reset source failed: %v", err)
+	}
+	if err := okf.RelateConcepts(tmpDir, "source", "target", "supports", "agent/test"); err != nil {
+		t.Fatalf("RelateConcepts before trailing section failed: %v", err)
+	}
+	data, err = os.ReadFile(filepath.Join(tmpDir, "source.md"))
+	if err != nil {
+		t.Fatalf("Read source after trailing section failed: %v", err)
+	}
+	content = string(data)
+	if strings.Index(content, "[Target](target.md): supports") > strings.Index(content, "# Notes") {
+		t.Fatalf("relationship was inserted outside the Related section: %s", content)
+	}
+
+	source.Body = "# Source\n\n# Related Concepts\n\n```markdown\n- [Target](target.md): illustrated only\n```"
+	if err := okf.SaveConcept(tmpDir, source, false, false, false, "agent/test"); err != nil {
+		t.Fatalf("Reset source with fenced example failed: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := okf.RelateConcepts(tmpDir, "source", "target", "illustrated only", "agent/test"); err != nil {
+			t.Fatalf("RelateConcepts with fenced example call %d failed: %v", i+1, err)
+		}
+	}
+	data, err = os.ReadFile(filepath.Join(tmpDir, "source.md"))
+	if err != nil {
+		t.Fatalf("Read source with fenced example failed: %v", err)
+	}
+	if got := strings.Count(string(data), "[Target](target.md): illustrated only"); got != 2 {
+		t.Fatalf("fenced example suppressed or duplicated the real relationship: got %d occurrences\n%s", got, string(data))
+	}
 }
 
 func TestBootstrap(t *testing.T) {

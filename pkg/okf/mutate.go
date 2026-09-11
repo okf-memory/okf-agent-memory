@@ -396,14 +396,13 @@ func RelateConcepts(bundleDir, sourceID, targetID, relationDesc, actor string) e
 	if relationDesc != "" {
 		relStatement = fmt.Sprintf("\n- [%s](%s): %s", linkText, relPath, relationDesc)
 	}
-
-	if !strings.Contains(srcConcept.Body, "# Related") {
-		srcConcept.Body = strings.TrimRight(srcConcept.Body, "\n") + "\n\n# Related Concepts" + relStatement + "\n"
-	} else {
-		srcConcept.Body = strings.TrimRight(srcConcept.Body, "\n") + relStatement + "\n"
+	if hasRelationship(srcConcept.Body, relPath, relationDesc) {
+		return nil
 	}
 
-	if err := SaveConcept(bundleDir, srcConcept, false, true, false, actor); err != nil {
+	srcConcept.Body = insertRelationship(srcConcept.Body, strings.TrimPrefix(relStatement, "\n"))
+
+	if err := SaveConcept(bundleDir, srcConcept, false, false, false, actor); err != nil {
 		return fmt.Errorf("failed to save related concept: %w", err)
 	}
 
@@ -412,4 +411,76 @@ func RelateConcepts(bundleDir, sourceID, targetID, relationDesc, actor string) e
 		logDesc = fmt.Sprintf("Linked `%s` to `%s` (%s).", srcConcept.Path, tgtConcept.Path, relationDesc)
 	}
 	return AppendLogEntry(bundleDir, "Update", logDesc)
+}
+
+func hasRelationship(body, relPath, relationDesc string) bool {
+	lines := strings.Split(body, "\n")
+	start, end, ok := relatedSectionBounds(lines)
+	if !ok {
+		return false
+	}
+	inFence := false
+	for _, line := range lines[start:end] {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if relationDesc == "" {
+			if strings.HasPrefix(trimmed, "- Related to [") && strings.HasSuffix(trimmed, "]("+relPath+")") {
+				return true
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "- [") && strings.HasSuffix(trimmed, "]("+relPath+"): "+relationDesc) {
+			return true
+		}
+	}
+	return false
+}
+
+func insertRelationship(body, relLine string) string {
+	lines := strings.Split(strings.TrimRight(body, "\n"), "\n")
+	_, end, ok := relatedSectionBounds(lines)
+	if !ok {
+		return strings.TrimRight(body, "\n") + "\n\n# Related Concepts\n" + relLine + "\n"
+	}
+
+	before := strings.TrimRight(strings.Join(lines[:end], "\n"), "\n")
+	after := strings.TrimLeft(strings.Join(lines[end:], "\n"), "\n")
+	if after == "" {
+		return before + "\n" + relLine + "\n"
+	}
+	return before + "\n" + relLine + "\n\n" + after + "\n"
+}
+
+func relatedSectionBounds(lines []string) (int, int, bool) {
+	inFence := false
+	start := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if start == -1 {
+			if trimmed == "# Related Concepts" || trimmed == "# Related" {
+				start = i + 1
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "# ") {
+			return start, i, true
+		}
+	}
+	if start != -1 {
+		return start, len(lines), true
+	}
+	return 0, 0, false
 }
