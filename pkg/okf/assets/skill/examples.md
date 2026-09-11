@@ -7,16 +7,24 @@ This document demonstrates complete end-to-end memory workflows across three dis
 ## Example 1: Software Engineering Workflow
 
 ### Goal
-An agent investigates a production bug involving connection pool exhaustion, discovers the root cause, persists an Architecture Decision Record (ADR), and links it to the database architecture.
+An agent is tasked with modifying database connection settings. Before editing code, it queries active governance for the database subsystem, investigates a connection pool exhaustion bug, persists an Architecture Decision Record (ADR) with `governance: constraint` and `code_refs`, and links it to the database architecture.
 
-### Step 1: Search Existing Knowledge
+### Step 1: Pre-Edit Scope & Governance Check
+Before touching code, discover governing constraints or active freezes:
+- **Native MCP (Preferred)**: `okf_search(for_path="services/database/pool.go")`
+- **CLI Fallback**:
+  ```bash
+  okf search --for-path services/database/pool.go knowledge --json
+  ```
+
+### Step 2: Search Existing Knowledge
 - **Native MCP (Preferred)**: `okf_search(query="database connection", limit=3)`
 - **CLI Fallback**:
   ```bash
   okf search "database connection" knowledge --limit 3 --json
   ```
 
-### Step 2: Create the ADR Concept
+### Step 3: Create the ADR Concept
 - **Native MCP (Preferred)**:
   ```json
   // Tool: okf_create
@@ -36,7 +44,7 @@ An agent investigates a production bug involving connection pool exhaustion, dis
     --json
   ```
 
-### Step 3: Link ADR to Core Database Concept
+### Step 4: Link ADR to Core Database Concept
 - **Native MCP (Preferred)**:
   ```json
   // Tool: okf_relate
@@ -61,6 +69,10 @@ id: decisions/adr-008-connection-pooling
 type: Decision
 title: "ADR-008: HikariCP Connection Pool Sizing"
 description: "Configures HikariCP with max 20 connections and 30s timeout to prevent RDS pool exhaustion."
+governance: constraint
+code_refs:
+  - "services/database/pool.go"
+  - "pkg/db/**"
 status: active
 generated:
   by: claude-code/v1.0

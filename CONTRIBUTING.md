@@ -98,6 +98,17 @@ If your PR modifies architecture, CLI behavior, conventions, or APIs:
   make validate
   ```
 
+### 4. Dogfooding & Embedded Asset Synchronization
+This repository dogfoods its own conventions and agent skills:
+- **Single Source of Truth**: The active skill files located in `.agents/skills/okf-memory/` are the authoritative source for agent skills.
+- **Embedded Bootstrap Assets**: The assets compiled into the binary under `pkg/okf/assets/skill/` are used by `okf bootstrap` to initialize external projects. They must remain 100% byte-identical to `.agents/skills/okf-memory/`.
+- **Sync Command**: Whenever you modify skills in `.agents/skills/okf-memory/`, run:
+  ```bash
+  make sync-assets
+  ```
+- **Template Neutrality**: Scaffold templates in `pkg/okf/assets/templates/` (such as `AGENTS.md`) are distributed to third-party codebases. They must remain completely project-neutral and must never contain repository-internal paths, constraints, or tokens.
+- **Automated Verification**: `TestDogfoodingAssetDrift` in `pkg/okf/dogfood_test.go` runs during `make test` and `make check`, failing the build if assets drift or if internal tokens leak into templates.
+
 ---
 
 ## 🧪 Pre-Submission Checklist
@@ -106,7 +117,8 @@ Before submitting a Pull Request, verify that all of the following pass locally:
 
 - [ ] `go fmt ./...` (or `make fmt`) has been run.
 - [ ] `go vet ./...` (or `make vet`) passes without errors.
-- [ ] `make test` runs with 100% passing tests.
+- [ ] `make test` runs with 100% passing tests (including dogfood asset drift checks).
+- [ ] If skills were modified, `make sync-assets` has been run.
 - [ ] `make validate` passes with `0 errors, 0 warnings, 0 orphans, 0 broken links`.
 - [ ] Relevant documentation (`README.md`, `docs/`, `SKILL.md`) is updated.
 

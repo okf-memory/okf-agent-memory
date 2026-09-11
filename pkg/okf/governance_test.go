@@ -188,6 +188,23 @@ func TestSearchForPath(t *testing.T) {
 			t.Errorf("expected 'architecture/auth-freeze' first, got %q", results[0].ConceptID)
 		}
 	})
+
+	t.Run("handles leading slashes and absolute paths gracefully", func(t *testing.T) {
+		// Leading slash: matches both convention/style (constraint) and architecture/storage (context)
+		results := b.SearchForPath("/pkg/okf/bundle.go", "", 10)
+		if len(results) != 2 || results[0].ConceptID != "convention/style" || results[1].ConceptID != "architecture/storage" {
+			t.Errorf("unexpected results for leading slash path: %v", results)
+		}
+
+		// Absolute path
+		cwd, _ := os.Getwd()
+		repoRoot := filepath.Dir(filepath.Dir(cwd)) // up from pkg/okf to repo root
+		absPath := filepath.Join(repoRoot, "pkg", "okf", "bundle.go")
+		resultsAbs := b.SearchForPath(absPath, "", 10)
+		if len(resultsAbs) != 2 || resultsAbs[0].ConceptID != "convention/style" || resultsAbs[1].ConceptID != "architecture/storage" {
+			t.Errorf("unexpected results for absolute path %s: %v", absPath, resultsAbs)
+		}
+	})
 }
 
 func TestGovernanceAndCodeRefsValidation(t *testing.T) {

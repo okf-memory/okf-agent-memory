@@ -5,6 +5,8 @@ description: Standard operational procedure for promoting a replica database whe
 tags: [runbook, database, ops, failover]
 generated: { by: agent/gemini-3.7-flash, at: 2026-08-27T12:00:00Z }
 status: stable
+governance: hold
+code_refs: [infra/database/**, deploy/db/**]
 ---
 
 # Database Failover Runbook

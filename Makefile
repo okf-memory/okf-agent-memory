@@ -1,4 +1,4 @@
-.PHONY: all build build-benchmark install test fmt vet lint vuln audit-security jules-list jules-review jules-merge validate validate-examples validate-all check release dist-bundle benchmark clean help
+.PHONY: all build build-benchmark install test fmt vet lint vuln audit-security jules-list jules-review jules-merge validate validate-examples validate-all check release dist-bundle benchmark clean help sync-assets
 
 BIN := bin/okf
 BUNDLE := knowledge
@@ -19,9 +19,16 @@ all: help
 ## check: Run the complete CI/local pipeline (fmt, vet, lint, test, validate-all)
 check: fmt vet lint test validate-all
 
-## test: Run all Go unit and integration tests
+## test: Run all Go unit and integration tests (including dogfood asset drift check)
 test:
 	@go test -v -race ./...
+
+## sync-assets: Synchronize active skill files (.agents/skills/) to embedded bootstrap assets (pkg/okf/assets/skill/)
+sync-assets:
+	@echo "==> Synchronizing dogfooded skills to embedded bootstrap assets..."
+	@mkdir -p pkg/okf/assets/skill
+	@cp -R .agents/skills/okf-memory/* pkg/okf/assets/skill/
+	@echo "==> Done. Embedded assets in pkg/okf/assets/skill/ are now synchronized."
 
 ## fmt: Format all Go source files with gofumpt / gofmt
 fmt:

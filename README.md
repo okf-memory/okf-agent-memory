@@ -39,7 +39,7 @@ flowchart TD
 * **Built on Google OKF v0.2**: Uses the open standard format for agent knowledge with full support for provenance (`sources`), trust tiers (`generated` vs. `verified`), and lifecycle metadata (`status`, `stale_after`).
 * **Solves Context Bloat & Memory Rot**: Employs **Progressive Disclosure** (hierarchical `index.md` files and link graphs) so agents only load the exact concepts they need.
 * **Search-Before-Write Principle**: Mandates querying existing memory before authoring, preventing concept duplication and hallucinated divergence.
-* **Zero-Dependency Go Toolchain**: Single binary with **zero external dependencies**, sub-5ms CLI startup time, and a built-in **Model Context Protocol (MCP) server** (`okf mcp`).
+* **Governance & Code-to-Knowledge Binding**: Bind architecture decisions directly to source files via `code_refs` and query active constraints/holds via `--for-path` before modifying code.
 * **Truly Domain-Neutral**: Designed for Software Engineering, Coaching, Scientific Research, Literature Reviews, and Operations.
 
 ---
@@ -81,6 +81,9 @@ This generates the standalone binary at `bin/okf`.
 
 # Search concepts via in-memory BM25 scoring
 ./bin/okf search "architecture layers" knowledge
+
+# Discover constraints and active holds governing a specific source file before editing
+./bin/okf search --for-path pkg/okf/types.go knowledge
 
 # Inspect a concept and its relationships (with --json support)
 ./bin/okf show architecture/layers knowledge --json
@@ -143,6 +146,8 @@ This automatically sets up:
 
 ```
 okf-agent-memory/
+├── .agents/                # Active agent skills and agent configuration
+│   └── skills/okf-memory/  # Authoritative OKF memory skill for AI agents (Single Source of Truth)
 ├── benchmarks/             # Progressive disclosure benchmark suite & hardware test data
 │   ├── data/               # Monolith docs vs OKF bundle test fixtures
 │   └── results/            # Reproducible benchmark logs across 8+ local & cloud LLMs

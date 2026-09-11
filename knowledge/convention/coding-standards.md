@@ -65,6 +65,11 @@ Maintain architectural discipline by avoiding both code duplication and over-eng
   - Do not create abstractions for single-use implementations.
 * **Platform Portability**:
   - Always use `filepath.Join`, `filepath.Clean`, and `filepath.ToSlash` rather than manual string concatenation with `/` or `\`.
+* **Embedded Asset Synchronization (Dogfooding Invariant)**:
+  - The repository's active skill in `.agents/skills/okf-memory/` is the Single Source of Truth for agent behavior.
+  - The embedded copy under `pkg/okf/assets/skill/` must remain 100% byte-identical so new projects bootstrapped via `okf bootstrap` receive the exact same capabilities.
+  - Run `make sync-assets` to mirror active skills into `pkg/okf/assets/skill/`.
+  - **Automated Gate**: `TestDogfoodingAssetDrift` in `pkg/okf/dogfood_test.go` runs during `make check` and automatically fails CI if active and embedded assets drift, or if repository-specific internal paths leak into the generic `pkg/okf/assets/templates/AGENTS.md` template.
 
 ---
 

@@ -25,15 +25,18 @@ Run the full test and validation suite:
 # 1. Format code according to Go best practices
 make fmt
 
-# 2. Run static analysis, unit tests, and strict OKF v0.2 bundle validation
+# 2. Synchronize active skills to embedded bootstrap assets (dogfooding)
+make sync-assets
+
+# 3. Run static analysis, unit tests (including drift checks), and strict OKF v0.2 bundle validation
 make check
 
-# 3. Run vulnerability scanner
+# 4. Run vulnerability scanner
 make vuln
 ```
 
 Ensure:
-- ✅ All Go tests pass (`pkg/okf/...`)
+- ✅ All Go tests pass (`pkg/okf/...`), including `TestDogfoodingAssetDrift`
 - ✅ Zero lint or vet errors
 - ✅ 0 bundle validation errors, 0 broken links, 0 orphaned concepts across `knowledge/` and `examples/`
 

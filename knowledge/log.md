@@ -1,4 +1,5 @@
 ## 2026-09-11
+* **Update**: Updated concept `convention/coding-standards.md` establishing the embedded asset synchronization invariant (`make sync-assets` and automated CI drift gate `TestDogfoodingAssetDrift`).
 * **Update**: Linked `architecture/layers.md` to `architecture/governance-model.md` (Specifies the 3-tier epistemic governance model and code-to-knowledge binding).
 * **Update**: Linked `architecture/governance-model.md` to `architecture/tooling-decision.md` (Implemented in deterministic Go CLI and MCP server).
 * **Update**: Linked `architecture/governance-model.md` to `architecture/layers.md` (Defines Layer 2 governance policies and Layer 4 code binding).

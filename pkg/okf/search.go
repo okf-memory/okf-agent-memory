@@ -203,18 +203,19 @@ func (b *Bundle) Search(query string, limit int) []SearchResult {
 
 // matchCodeRef tests whether target matches a code reference pattern.
 // Supports exact paths, directory prefixes, standard globs (path.Match), and recursive ** wildcards.
+// It also seamlessly handles absolute paths (e.g. /workspace/pkg/okf/types.go).
 func matchCodeRef(ref, target string) bool {
-	ref = filepath.ToSlash(strings.TrimPrefix(strings.TrimSpace(ref), "./"))
-	target = filepath.ToSlash(strings.TrimPrefix(strings.TrimSpace(target), "./"))
+	ref = filepath.ToSlash(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(ref), "."), "/"))
+	target = filepath.ToSlash(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(target), "."), "/"))
 	if ref == "" || target == "" {
 		return false
 	}
-	if ref == target {
+	if ref == target || strings.HasSuffix(target, "/"+ref) {
 		return true
 	}
-	// Directory prefix: e.g. "pkg/okf" matches "pkg/okf/types.go"
+	// Directory prefix: e.g. "pkg/okf" matches "pkg/okf/types.go" or "/app/pkg/okf/types.go"
 	cleanRef := strings.TrimSuffix(ref, "/")
-	if strings.HasPrefix(target, cleanRef+"/") {
+	if strings.HasPrefix(target, cleanRef+"/") || strings.Contains(target, "/"+cleanRef+"/") {
 		return true
 	}
 	// Standard path.Match glob
@@ -227,7 +228,7 @@ func matchCodeRef(ref, target string) bool {
 		if len(parts) == 2 {
 			prefix := strings.TrimSuffix(parts[0], "/")
 			suffix := strings.TrimPrefix(parts[1], "/")
-			hasPrefixMatch := prefix == "" || strings.HasPrefix(target, prefix+"/") || target == prefix
+			hasPrefixMatch := prefix == "" || strings.HasPrefix(target, prefix+"/") || target == prefix || strings.Contains(target, "/"+prefix+"/")
 			if !hasPrefixMatch {
 				return false
 			}

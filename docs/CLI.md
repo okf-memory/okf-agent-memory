@@ -15,7 +15,7 @@ okf <command> [arguments] [flags]
 * `--json`: Outputs machine-readable JSON instead of human-friendly terminal formatting.
 * `--strict`: Evaluates connectivity warnings (orphans, broken links) and provenance integrity (including superseded verifications `verified.at < generated.at`, missing actors, and v0.1 legacy syntax) as fatal gate errors.
 * `--stale`: Evaluates expired lifecycle dates (`today >= stale_after`) as fatal errors. By default, stale concepts are reported as lifecycle warnings without failing `--strict`, separating CI build integrity from temporal review cycles.
-* `--drift`: Detects discrepancies between concept frontmatter descriptions and listings inside parent `index.md` files.
+* `--drift`: Detects discrepancies between concept frontmatter descriptions and parent `index.md` listings, and verifies that `code_refs` paths point to existing files/directories in the repository.
 
 ---
 
@@ -34,7 +34,7 @@ okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
 * **Flags**:
   * `--strict`: Fails the producer gate on broken links, orphans, superseded verifications, and schema discrepancies.
   * `--stale`: Fails the producer gate if any concept has reached or passed its `stale_after` date.
-  * `--drift`: Checks whether concept listings in index files differ from concept descriptions.
+  * `--drift`: Checks whether concept listings in index files differ from concept descriptions, and verifies that `code_refs` point to valid source paths.
   * `--json`: Emits machine-readable JSON diagnostics.
 * **Exit Codes**:
   * `0`: Valid & conformant (producer gate passed).
@@ -61,29 +61,40 @@ okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
 
 ### 2. `search`
 
-Searches concepts within a bundle using fast in-memory BM25 scoring across titles, descriptions, tags, IDs, and body text.
+Searches concepts within a bundle using fast in-memory BM25 scoring across titles, descriptions, tags, IDs, and body text, or discovers concepts governing a specific file path via `code_refs`.
 
 ```bash
-okf search <query> [bundle-path] [--limit <N>] [--json]
+okf search [query] [bundle-path] [--for-path <file-or-dir>] [--limit <N>] [--json]
 ```
 
 * **Arguments**:
-  * `query` (required): Search terms or keywords.
+  * `query` (optional when `--for-path` is provided): Search terms or keywords.
   * `bundle-path` (optional, default: `./knowledge`).
 * **Flags**:
+  * `--for-path <path>`: Filters concepts governing a specific source file or directory via `code_refs` (exact match, directory prefix, standard glob, or recursive `**` wildcard).
   * `--limit <N>` (default: `10`): Maximum results to return.
+  * `--json`: Outputs machine-readable JSON array of matching concepts with governance tiers and matched fields.
+
+#### Governance Badges & Authority Ranking
+
+Search results display an explicit governance badge indicating the concept's operational authority over code modifications:
+* `[constraint]`: Mandatory rule/guardrail (e.g. pure Go stdlib, zero external dependencies).
+* `[hold]`: Execution freeze / migration underway. Code under `code_refs` must NOT be edited without explicit human approval.
+* `[context]`: Informative domain background.
+
+When querying by `--for-path`, results are deterministically prioritized: `hold` concepts appear first (stop-the-line), followed by `constraint` (rules), then `context`.
 
 #### Terminal Output Example:
 ```text
-Found 2 matching concept(s) in 'knowledge':
+Found 2 matching concept(s) governing 'pkg/okf/types.go' in 'knowledge':
 
- 1. [6.45] architecture/layers (Architecture)
-    Five-tier architecture separating specification, convention, skills, tooling, and corpus.
+ 1. [constraint] [22.00] architecture/governance-model (Decision)
+    3-tier epistemic governance model (constraint, hold, context) and code-to-knowledge binding via code_refs.
+    Matches: code_refs
+
+ 2. [context]    [0.31] architecture/layers (Architecture)
+    Structural separation of concerns across the OKF specification, agent convention, skills, deterministic tooling, and knowledge corpus.
     Matches: title, description
-
- 2. [3.12] project/overview (Project)
-    Domain-neutral persistent project-memory system for AI agents and humans.
-    Matches: body
 ```
 
 ---
@@ -211,7 +222,7 @@ okf mcp [bundle-path]
 
 | Tool Name | Parameters | Description |
 | :--- | :--- | :--- |
-| `okf_search` | `query` (string), `limit` (int) | Query memory corpus via BM25 ranking. |
+| `okf_search` | `query` (string, opt), `for_path` (string, opt), `limit` (int) | Query memory corpus via BM25 ranking, or find concepts governing a file via `code_refs`. |
 | `okf_show` | `concept_id` (string) | Fetch concept frontmatter, body, and graph links. |
 | `okf_create` | `id`, `type`, `title`, `description`, `body`, `tags` | Create concept with automatic index & log bookkeeping. |
 | `okf_update` | `id`, `title`, `description`, `body` | Update existing concept and record in log.md. |

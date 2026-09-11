@@ -5,6 +5,8 @@ description: Architectural decision adopting Ed25519-signed stateless JWTs for i
 tags: [decision, jwt, security, auth]
 generated: { by: agent/gemini-3.7-flash, at: 2026-08-27T12:00:00Z }
 status: stable
+governance: constraint
+code_refs: [services/auth/jwt/**, pkg/auth/**]
 ---
 
 # Decision: Ed25519 Stateless JWT Tokens

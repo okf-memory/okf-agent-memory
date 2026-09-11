@@ -89,6 +89,39 @@ okf search "authentication jwt" knowledge
 }
 ```
 
+### Pre-Edit Scope & Code Lookup (`for_path`)
+Before modifying code in a subsystem or module, query governing concepts to uncover mandatory constraints or active holds:
+
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_search
+{
+  "for_path": "pkg/auth/"
+}
+```
+
+#### Option B: CLI Fallback
+```bash
+# Discover constraints and holds governing a target path
+okf search --for-path pkg/auth/ knowledge --json
+```
+
+**Output Example**:
+```json
+[
+  {
+    "concept_id": "architecture/auth-v2",
+    "title": "Auth Subsystem Freeze",
+    "type": "architecture",
+    "description": "Refactoring in progress, do not modify without signoff.",
+    "governance": "hold",
+    "code_refs": ["pkg/auth/*"],
+    "score": 30.0,
+    "matched_on": ["code_refs"]
+  }
+]
+```
+
 ### Inspect Concept Details
 Retrieve a single concept with its metadata, parsed frontmatter, and outward/inward links:
 

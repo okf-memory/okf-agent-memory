@@ -6,6 +6,8 @@ resource: https://auth.internal.example/docs
 tags: [auth, security, microservice]
 generated: { by: agent/gemini-3.7-flash, at: 2026-08-27T12:00:00Z }
 status: stable
+governance: context
+code_refs: [services/auth/**]
 ---
 
 # Authentication Microservice
