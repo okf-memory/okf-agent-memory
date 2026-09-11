@@ -14,6 +14,20 @@ Before submitting code or documentation, please keep our core tenets in mind:
 
 ---
 
+## 🛑 Issue-First Contribution Policy
+
+To maintain architectural focus, prevent duplicated effort, and protect maintainer bandwidth:
+
+1. **Always Open an Issue First**:
+   - Before writing code or opening a Pull Request, please **open a GitHub Issue** to discuss the bug, proposed feature, or architectural change.
+   - Wait for alignment and confirmation from maintainers before starting implementation.
+2. **Unsolicited & Agent-Generated PRs**:
+   - Pull Requests submitted without an associated approved issue, or automated sweeps by AI agents with generic or empty templates, will be **closed without review**.
+3. **Exceptions**:
+   - Minor typos or grammar fixes in documentation do not require an issue, but still require a filled-out PR description.
+
+---
+
 ## 🛠️ Development Setup
 
 ### Prerequisites
@@ -51,12 +65,15 @@ Before submitting code or documentation, please keep our core tenets in mind:
 ## 📋 Development Workflow
 
 ### 1. Branching Strategy
-- Base all feature and bugfix branches off `main`:
+- Base all feature and bugfix branches off **`develop`** (our default branch):
   ```bash
+  git checkout develop
+  git pull origin develop
   git checkout -b feat/your-feature-name
   # or
   git checkout -b fix/issue-description
   ```
+- The **`main`** branch is reserved strictly for published, tagged production releases. Do not open feature PRs against `main`.
 
 ### 2. Commit Message Conventions
 We adhere to [Conventional Commits](https://www.conventionalcommits.org/):
@@ -97,12 +114,10 @@ Before submitting a Pull Request, verify that all of the following pass locally:
 
 ## 🚀 Submitting a Pull Request
 
-1. Push your branch to your fork.
-2. Open a Pull Request against `main`.
-3. Provide a clear description explaining:
-   - What problem does this PR solve?
-   - What changes were made?
-   - How did you verify the changes?
-4. Ensure all GitHub Actions checks pass green.
+1. Verify that your PR addresses an **approved GitHub Issue** (or is an obvious documentation typo fix).
+2. Push your branch to your fork.
+3. Open a Pull Request against **`develop`** (the default branch).
+4. Fill out the Pull Request template completely, including the `Fixes #...` issue reference. **Do not leave template fields empty.**
+5. Ensure all GitHub Actions checks pass green.
 
 Thank you for helping make AI agent memory reliable, persistent, and standardized!

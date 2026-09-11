@@ -68,14 +68,22 @@ Ensure no uncommitted files or untracked scratch files remain.
 
 ### Quick Release Summary
 ```bash
-# 1. Update changelog and commit
+# 1. Update changelog on develop and commit
+git checkout develop
+git pull origin develop
 git add knowledge/log.md
-git commit -m "docs(changelog): release v0.1.0"
+git commit -m "docs(changelog): prepare release v0.2.0"
+git push origin develop
+
+# 2. Merge develop into main
+git checkout main
+git pull origin main
+git merge --ff-only develop
 git push origin main
 
-# 2. Tag and push (triggers automated build & GitHub release)
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
+# 3. Tag and push on main (triggers automated build & GitHub release)
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push origin v0.2.0
 ```
 
 ---
@@ -124,15 +132,20 @@ VERSION=${CLEAN_VER} make dist-bundle
 ./bin/okf version
 ```
 
-#### Step 4: Create and Push Git Tag (Triggers CI/CD)
-Create an annotated tag and push it to GitHub. This triggers the GitHub Actions workflow, which automatically compiles all release binaries with the tag version:
+#### Step 4: Merge to Main and Push Git Tag (Triggers CI/CD)
+Merge `develop` into `main`, then create an annotated tag and push it to GitHub. This triggers the GitHub Actions workflow, which automatically compiles all release binaries with the tag version:
 
 ```bash
-# Create annotated tag
+# 1. Switch to main and merge develop
+git checkout main
+git pull origin main
+git merge --ff-only develop
+git push origin main
+
+# 2. Create annotated tag on main
 git tag -a "${RELEASE_VER}" -m "Release ${RELEASE_VER}"
 
-# Push commit and tag to GitHub
-git push origin main
+# 3. Push tag to GitHub
 git push origin "${RELEASE_VER}"
 ```
 
@@ -176,8 +189,14 @@ okf version
 If an urgent bug is discovered after release:
 1. Create a hotfix branch from `main`:
    ```bash
-   git checkout -b hotfix/v0.2.1
+   git checkout -b hotfix/v0.2.1 main
    ```
 2. Apply the fix and add a regression test in `pkg/okf/`.
 3. Run `make check`.
 4. Merge into `main` and release `v0.2.1` following this playbook.
+5. Backport hotfix into `develop` to ensure changes are not lost:
+   ```bash
+   git checkout develop
+   git merge main
+   git push origin develop
+   ```
