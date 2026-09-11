@@ -661,3 +661,61 @@ func TestSaveConceptActorWhitespaceFallback(t *testing.T) {
 		t.Errorf("Expected trimmed actor 'agent/custom', got %+v", c2.Generated)
 	}
 }
+
+// TestValidateConceptIDControlCharacters verifies that concept IDs containing null bytes or control chars are rejected.
+func TestValidateConceptIDControlCharacters(t *testing.T) {
+	controlCases := []string{
+		"concept\x00id",
+		"concept\r\nid",
+		"concept\tid",
+		"sub/\x00/concept",
+	}
+
+	for _, id := range controlCases {
+		if err := ValidateConceptID(id); err == nil {
+			t.Errorf("ValidateConceptID(%q) expected error for control characters, got nil", id)
+		}
+	}
+}
+
+// TestSearchResourceLimits verifies that Search enforces maximum limit caps and truncates oversized query strings.
+func TestSearchResourceLimits(t *testing.T) {
+	bundleDir := t.TempDir()
+	if err := InitBundle(bundleDir); err != nil {
+		t.Fatalf("InitBundle failed: %v", err)
+	}
+
+	for i := 0; i < 150; i++ {
+		c := &Concept{
+			ID:          filepath.Join("items", strings.Repeat("a", 10)+"-"+string(rune('a'+i%26))+"-"+strings.Repeat("x", i%10)),
+			Path:        filepath.Join("items", strings.Repeat("a", 10)+"-"+string(rune('a'+i%26))+"-"+strings.Repeat("x", i%10)+".md"),
+			Title:       "Test Concept " + string(rune('A'+i%26)),
+			Type:        "Fact",
+			Description: "Common search target term for testing limits.",
+			Body:        "Body containing common search target term.",
+		}
+		c.Path = filepath.ToSlash(c.Path)
+		c.ID = filepath.ToSlash(c.ID)
+		if err := SaveConcept(bundleDir, c, true, false, false, "test"); err != nil {
+			t.Fatalf("SaveConcept %d failed: %v", i, err)
+		}
+	}
+
+	b, err := LoadBundle(bundleDir)
+	if err != nil {
+		t.Fatalf("LoadBundle failed: %v", err)
+	}
+
+	// 1. Oversized limit parameter (e.g. 100000) should be capped at MaxSearchLimit (100)
+	results := b.Search("common search target term", 100000)
+	if len(results) > MaxSearchLimit {
+		t.Errorf("Expected at most %d search results, got %d", MaxSearchLimit, len(results))
+	}
+
+	// 2. Oversized query string (> 1000 chars) should be handled safely
+	hugeQuery := strings.Repeat("term ", 500)
+	hugeResults := b.Search(hugeQuery, 10)
+	if hugeResults == nil {
+		t.Errorf("Expected search with huge query string to return results, got nil")
+	}
+}

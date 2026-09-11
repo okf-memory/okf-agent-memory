@@ -84,6 +84,10 @@ func ValidateConceptID(id string) error {
 		return fmt.Errorf("concept ID cannot be empty")
 	}
 
+	if strings.ContainsAny(trimmed, "\x00\r\n\t") {
+		return fmt.Errorf("concept ID %q contains forbidden control characters", id)
+	}
+
 	cleanID := strings.TrimSuffix(trimmed, ".md")
 	if cleanID == "" || cleanID == "." || cleanID == ".." {
 		return fmt.Errorf("invalid concept ID %q", id)
