@@ -189,6 +189,47 @@ func TestMCPToolCalls(t *testing.T) {
 	}
 }
 
+func TestMCPAdversarialSearchResourceLimits(t *testing.T) {
+	tmpDir := t.TempDir()
+	bundleDir := filepath.Join(tmpDir, "bundle")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Bundle\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	hugeQuery := strings.Repeat("searchterm ", 200)
+
+	inputs := []string{
+		// 1. Search with massive limit parameter (e.g. 1,000,000)
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleDir + `","query":"test","limit":1000000}}}`,
+		// 2. Search with oversized query string
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleDir + `","query":"` + hugeQuery + `","limit":10}}}`,
+		// 3. Create concept with control character in concept_id
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"ctrl\u0000concept","type":"Fact","title":"Ctrl","description":"Desc"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != 3 {
+		t.Fatalf("Expected 3 responses, got %d", len(responses))
+	}
+
+	// Step 1 and 2 search queries should succeed cleanly without error
+	for i := 0; i < 2; i++ {
+		rMap, ok := responses[i].Result.(map[string]any)
+		if !ok || rMap["isError"] == true {
+			t.Errorf("Step %d search failed unexpectedly: %+v", i+1, responses[i])
+		}
+	}
+
+	// Step 3 (control char in concept_id) must return isError: true
+	step3Res, ok := responses[2].Result.(map[string]any)
+	if !ok {
+		t.Fatalf("Step 3 response result type invalid: %T", responses[2].Result)
+	}
+	if isError, _ := step3Res["isError"].(bool); !isError {
+		t.Errorf("Expected step 3 (control char concept_id) to return isError: true, got: %+v", step3Res)
+	}
+}
+
 func TestMCPAdversarialIndirectPromptInjectionInputs(t *testing.T) {
 	tmpDir := t.TempDir()
 	bundleDir := filepath.Join(tmpDir, "bundle")
