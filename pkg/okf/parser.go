@@ -259,6 +259,10 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 			c.Resource = unquote(b.inline)
 		case "status":
 			c.Status = unquote(b.inline)
+		case "governance":
+			c.Governance = unquote(b.inline)
+		case "code_refs":
+			c.CodeRefs = ParseStringList(b.inline, b.lines)
 		case "stale_after":
 			c.StaleAfter = unquote(b.inline)
 		case "tags":
@@ -490,6 +494,16 @@ func SerializeConcept(c *Concept) string {
 	}
 	if c.Status != "" {
 		fmt.Fprintf(&sb, "status: %s\n", safeYAMLString(c.Status))
+	}
+	if c.Governance != "" {
+		fmt.Fprintf(&sb, "governance: %s\n", safeYAMLString(c.Governance))
+	}
+	if len(c.CodeRefs) > 0 {
+		quotedRefs := make([]string, len(c.CodeRefs))
+		for i, r := range c.CodeRefs {
+			quotedRefs[i] = safeYAMLString(r)
+		}
+		fmt.Fprintf(&sb, "code_refs: [%s]\n", strings.Join(quotedRefs, ", "))
 	}
 	if c.StaleAfter != "" {
 		fmt.Fprintf(&sb, "stale_after: %s\n", safeYAMLString(c.StaleAfter))

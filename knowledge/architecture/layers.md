@@ -1,10 +1,10 @@
 ---
 type: Architecture
 title: 5-Layer System Architecture
-description: Structural separation of concerns across the OKF specification, agent convention, skills, deterministic tooling, and knowledge corpus.
-resource: https://github.com/okf-memory/okf-agent-memory
+description: "Structural separation of concerns across the OKF specification, agent convention, skills, deterministic tooling, and knowledge corpus."
+resource: "https://github.com/okf-memory/okf-agent-memory"
 tags: [architecture, layers, design, tooling]
-generated: { by: agent/mcp, at: 2026-09-08T07:42:55Z }
+generated: { by: agent/cli, at: "2026-09-11T15:37:46Z" }
 status: stable
 sources:
   - resource: ../../docs/CONVENTION.md
@@ -58,3 +58,4 @@ The version-controlled `knowledge/` directory holding the actual durable concept
 # Related Concepts
 - [Bundle Isolation and Mutation Security Boundaries](security-boundaries.md): Layer 4 tooling enforces security boundaries and bundle isolation
 - [Engineering & Coding Best Practices (Clean Code, TDD, DRY)](../convention/coding-standards.md): Coding standards governing Layer 4 Go tooling development
+- [Governance vs. Execution Context and Code Binding](governance-model.md): Specifies the 3-tier epistemic governance model and code-to-knowledge binding

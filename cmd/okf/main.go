@@ -98,10 +98,11 @@ Commands:
   version                Print version information
   help                   Show this help message
 
-Flags (general):
+Flags:
+  --for-path <path>      Filter concepts governing a file path via code_refs (search)
   --json                 Emit machine-readable JSON output
   --strict               Gate connectivity warnings and trust gaps as errors in validate
-  --drift                Check index.md listing descriptions against concepts
+  --drift                Check descriptions and code_refs for drift in validate
   --stale                Gate expired review dates (stale_after) as errors in validate
 
 `, Version)
@@ -209,23 +210,63 @@ func cmdValidate(args []string) {
 }
 
 func cmdSearch(args []string) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: okf search <query> [bundle] [--limit N] [--json]")
-		os.Exit(1)
-	}
-
-	query := args[0]
-	var subArgs []string
-	if len(args) > 1 {
-		subArgs = args[1:]
-	}
-
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
 	limit := fs.Int("limit", 10, "Maximum number of search results")
+	forPath := fs.String("for-path", "", "Filter concepts governing a specific file path via code_refs")
 	jsonOut := fs.Bool("json", false, "Output results as JSON")
 
-	bundleDir, flagArgs := defaultBundle(subArgs)
+	// Separate flags from positional arguments
+	var flagArgs []string
+	var positional []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			flagArgs = append(flagArgs, arg)
+			// If flag takes a value separated by space, consume it
+			name := strings.TrimLeft(arg, "-")
+			if (name == "limit" || name == "for-path") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				flagArgs = append(flagArgs, args[i])
+			}
+		} else {
+			positional = append(positional, arg)
+		}
+	}
+
 	_ = fs.Parse(flagArgs)
+
+	fallback := "."
+	if info, err := os.Stat("knowledge"); err == nil && info.IsDir() {
+		fallback = "knowledge"
+	}
+	bundleDir := fallback
+
+	var query string
+	if *forPath != "" {
+		if len(positional) == 1 {
+			if info, err := os.Stat(positional[0]); err == nil && info.IsDir() {
+				bundleDir = positional[0]
+			} else {
+				query = positional[0]
+			}
+		} else if len(positional) >= 2 {
+			query = positional[0]
+			bundleDir = positional[1]
+		}
+	} else {
+		if len(positional) >= 1 {
+			query = positional[0]
+		}
+		if len(positional) >= 2 {
+			bundleDir = positional[1]
+		}
+	}
+
+	if query == "" && *forPath == "" {
+		fmt.Fprintln(os.Stderr, "Usage: okf search <query> [bundle] [--for-path <path>] [--limit N] [--json]")
+		os.Exit(1)
+	}
 
 	b, err := okf.LoadBundle(bundleDir)
 	if err != nil {
@@ -233,7 +274,12 @@ func cmdSearch(args []string) {
 		os.Exit(2)
 	}
 
-	results := b.Search(query, *limit)
+	var results []okf.SearchResult
+	if *forPath != "" {
+		results = b.SearchForPath(*forPath, query, *limit)
+	} else {
+		results = b.Search(query, *limit)
+	}
 
 	if *jsonOut {
 		data, _ := json.MarshalIndent(results, "", "  ")
@@ -242,14 +288,26 @@ func cmdSearch(args []string) {
 	}
 
 	if len(results) == 0 {
-		fmt.Printf("No matching concepts found for query: '%s'\n", query)
+		if *forPath != "" && query != "" {
+			fmt.Printf("No matching concepts found for path '%s' and query: '%s'\n", *forPath, query)
+		} else if *forPath != "" {
+			fmt.Printf("No matching concepts found governing path: '%s'\n", *forPath)
+		} else {
+			fmt.Printf("No matching concepts found for query: '%s'\n", query)
+		}
 		return
 	}
 
-	fmt.Printf("Found %d matching concept(s) in '%s':\n\n", len(results), bundleDir)
+	if *forPath != "" {
+		fmt.Printf("Found %d matching concept(s) governing '%s' in '%s':\n\n", len(results), *forPath, bundleDir)
+	} else {
+		fmt.Printf("Found %d matching concept(s) in '%s':\n\n", len(results), bundleDir)
+	}
+
 	for i, r := range results {
-		fmt.Printf("%2d. [%.2f] %s (%s)\n    %s\n    Matches: %s\n\n",
-			i+1, r.Score, r.ConceptID, r.Type, r.Description, strings.Join(r.MatchedOn, ", "))
+		govBadge := fmt.Sprintf("[%s]", r.Governance)
+		fmt.Printf("%2d. %-12s [%.2f] %s (%s)\n    %s\n    Matches: %s\n\n",
+			i+1, govBadge, r.Score, r.ConceptID, r.Type, r.Description, strings.Join(r.MatchedOn, ", "))
 	}
 }
 

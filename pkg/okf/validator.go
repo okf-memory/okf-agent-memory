@@ -2,6 +2,7 @@ package okf
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -9,8 +10,13 @@ import (
 )
 
 var (
-	isoDateRegex  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	validStatuses = map[string]bool{"draft": true, "stable": true, "deprecated": true}
+	isoDateRegex     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+	validStatuses    = map[string]bool{"draft": true, "stable": true, "deprecated": true}
+	validGovernances = map[string]bool{
+		GovernanceConstraint: true,
+		GovernanceHold:       true,
+		GovernanceContext:    true,
+	}
 )
 
 // ValidationResult contains all validation diagnostics.
@@ -190,6 +196,11 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			}
 		}
 
+		// Governance validation
+		if c.Governance != "" && !validGovernances[strings.ToLower(c.Governance)] {
+			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: governance '%s' is not constraint|hold|context", at, c.Governance))
+		}
+
 		// Lifecycle validation
 		if c.Status != "" && !validStatuses[c.Status] {
 			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: status '%s' is not draft|stable|deprecated", at, c.Status))
@@ -204,7 +215,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 		}
 	}
 
-	// 4. Drift check: compare index descriptions against concept descriptions
+	// 4. Drift check: compare index descriptions against concept descriptions & verify code_refs
 	if opts.Drift {
 		normText := func(s string) string {
 			s = strings.ToLower(s)
@@ -228,6 +239,27 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 					if !strings.Contains(normText(listingDesc), normText(concept.Description)) {
 						res.Warnings = append(res.Warnings, fmt.Sprintf("%s: listing for %s.md differs from concept description", idxPath, targetID))
 					}
+				}
+			}
+		}
+
+		// Check code_refs drift (verify non-glob references exist in repository or bundle)
+		bundleAbs, _ := filepath.Abs(b.RootPath)
+		projectRoot := filepath.Dir(bundleAbs)
+		for _, c := range b.Concepts {
+			at := c.Path
+			for _, ref := range c.CodeRefs {
+				refTrimmed := strings.TrimSpace(ref)
+				if refTrimmed == "" || strings.ContainsAny(refTrimmed, "*?[{") {
+					continue
+				}
+				cleanRef := filepath.Clean(refTrimmed)
+				pathInProj := filepath.Join(projectRoot, cleanRef)
+				pathInBundle := filepath.Join(bundleAbs, cleanRef)
+				_, errProj := os.Stat(pathInProj)
+				_, errBundle := os.Stat(pathInBundle)
+				if errProj != nil && errBundle != nil {
+					res.Warnings = append(res.Warnings, fmt.Sprintf("%s: code_refs '%s' points to non-existent path", at, refTrimmed))
 				}
 			}
 		}

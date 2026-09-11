@@ -1,4 +1,8 @@
 ## 2026-09-11
+* **Update**: Linked `architecture/layers.md` to `architecture/governance-model.md` (Specifies the 3-tier epistemic governance model and code-to-knowledge binding).
+* **Update**: Linked `architecture/governance-model.md` to `architecture/tooling-decision.md` (Implemented in deterministic Go CLI and MCP server).
+* **Update**: Linked `architecture/governance-model.md` to `architecture/layers.md` (Defines Layer 2 governance policies and Layer 4 code binding).
+* **Creation**: Documented concept `architecture/governance-model.md` (Governance vs. Execution Context and Code Binding).
 * **Update**: Established Issue-First contribution policy and GitFlow branching strategy designating `develop` as default integration branch for PRs and reserving `main` strictly for tagged releases in `convention/contributing.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, and `docs/RELEASE_PLAYBOOK.md`.
 
 ## 2026-09-10

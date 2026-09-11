@@ -226,7 +226,7 @@ func getMCPTools() []map[string]any {
 	return []map[string]any{
 		{
 			"name":        "okf_search",
-			"description": "Search the OKF knowledge bundle for concepts by query terms, tags, and titles using in-memory BM25 scoring.",
+			"description": "Search the OKF knowledge bundle for concepts by query terms, tags, and titles using in-memory BM25 scoring, or by file path via code_refs.",
 			"inputSchema": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -234,13 +234,17 @@ func getMCPTools() []map[string]any {
 						"type":        "string",
 						"description": "Search terms to find matching concepts.",
 					},
+					"for_path": map[string]any{
+						"type":        "string",
+						"description": "Optional file or directory path to find governing concepts via code_refs (e.g. 'pkg/okf/types.go').",
+					},
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum number of results (default 10).",
 					},
 					"bundle": bundleProp,
 				},
-				"required": []string{"query"},
+				"required": []string{},
 			},
 		},
 		{
@@ -461,11 +465,17 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 	switch callParams.Name {
 	case "okf_search":
 		query, _ := callParams.Arguments["query"].(string)
+		forPath, _ := callParams.Arguments["for_path"].(string)
 		limit := 10
 		if l, ok := callParams.Arguments["limit"].(float64); ok && l > 0 {
 			limit = int(l)
 		}
-		results := b.Search(query, limit)
+		var results []okf.SearchResult
+		if forPath != "" {
+			results = b.SearchForPath(forPath, query, limit)
+		} else {
+			results = b.Search(query, limit)
+		}
 		if results == nil {
 			results = []okf.SearchResult{}
 		}

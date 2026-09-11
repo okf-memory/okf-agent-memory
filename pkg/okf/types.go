@@ -2,6 +2,14 @@ package okf
 
 import (
 	"regexp"
+	"strings"
+)
+
+// Governance level constants defining agent authority over code modifications.
+const (
+	GovernanceConstraint = "constraint"
+	GovernanceHold       = "hold"
+	GovernanceContext    = "context"
 )
 
 // Actor format regex: <producer>/<version> or <prefix>:<id> (OKF v0.2 §7 open family)
@@ -19,6 +27,8 @@ type Concept struct {
 	Generated   *Generated           `json:"generated,omitempty"`
 	Verified    []Verified           `json:"verified,omitempty"`
 	Status      string               `json:"status,omitempty"`      // draft | stable | deprecated
+	Governance  string               `json:"governance,omitempty"`  // constraint | hold | context
+	CodeRefs    []string             `json:"code_refs,omitempty"`   // Referenced source paths or globs
 	StaleAfter  string               `json:"stale_after,omitempty"` // YYYY-MM-DD
 	Sources     []Source             `json:"sources,omitempty"`
 	Attestation *AttestedComputation `json:"attestation,omitempty"`
@@ -26,6 +36,23 @@ type Concept struct {
 	Body        string               `json:"body"`            // Markdown body after frontmatter
 	RawContent  string               `json:"raw_content,omitempty"`
 	extraBlocks map[string]bool
+}
+
+// EffectiveGovernance returns the effective governance level of the concept:
+// "hold" (execution freeze / manual signoff required),
+// "constraint" (mandatory rules/guardrails for code modifications), or
+// "context" (informative domain knowledge).
+// If explicitly declared, c.Governance is normalized to lowercase and returned.
+// Otherwise, concepts with ID starting with "convention/" default to "constraint".
+// All other concepts default to "context".
+func (c *Concept) EffectiveGovernance() string {
+	if c.Governance != "" {
+		return strings.ToLower(c.Governance)
+	}
+	if strings.HasPrefix(c.ID, "convention/") {
+		return GovernanceConstraint
+	}
+	return GovernanceContext
 }
 
 // Generated records who authored the concept and when.

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/okf-memory/okf-agent-memory/pkg/okf"
 )
 
 func runMCPConversation(t *testing.T, bundleDir string, inputs []string) []jsonRPCResponse {
@@ -615,5 +617,62 @@ func TestMCPBundle_PathTraversalDenied(t *testing.T) {
 				t.Errorf("Expected path traversal error message, got: %q", text)
 			}
 		}
+	}
+}
+
+func TestMCPSearchForPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	bundleDir := filepath.Join(tmpDir, "knowledge")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Root\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	// Add a concept with code_refs
+	conceptContent := `---
+type: convention
+title: "Pure Go Guideline"
+description: "Zero external dependencies allowed."
+governance: constraint
+code_refs: ["pkg/**/*.go"]
+---
+# Rules
+`
+	convDir := filepath.Join(bundleDir, "convention")
+	_ = os.MkdirAll(convDir, 0o755)
+	_ = os.WriteFile(filepath.Join(convDir, "pure-go.md"), []byte(conceptContent), 0o644)
+
+	inputs := []string{
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"for_path":"pkg/okf/types.go"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != 1 {
+		t.Fatalf("Expected 1 response, got %d", len(responses))
+	}
+
+	rMap, ok := responses[0].Result.(map[string]any)
+	if !ok {
+		t.Fatalf("Response has unexpected result type: %T", responses[0].Result)
+	}
+	content, _ := rMap["content"].([]any)
+	if len(content) == 0 {
+		t.Fatalf("Expected content in response")
+	}
+	cMap, _ := content[0].(map[string]any)
+	text, _ := cMap["text"].(string)
+
+	var results []okf.SearchResult
+	if err := json.Unmarshal([]byte(text), &results); err != nil {
+		t.Fatalf("Failed to unmarshal search results: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 search result, got %d", len(results))
+	}
+	if results[0].ConceptID != "convention/pure-go" {
+		t.Errorf("Expected concept ID 'convention/pure-go', got %q", results[0].ConceptID)
+	}
+	if results[0].Governance != "constraint" {
+		t.Errorf("Expected governance 'constraint', got %q", results[0].Governance)
 	}
 }
