@@ -1,4 +1,5 @@
 ## 2026-09-11
+* **Release**: Prepared major milestone Release v0.2.0 — Epistemic Governance & Code-to-Knowledge Binding Release integrating 3-tier authority model (constraint, hold, context), code_refs and scoped pre-edit discovery (--for-path in CLI and MCP), automated dogfooding parity test (TestDogfoodingAssetDrift), path traversal hardening (CWE-22), and community contributions from @krakozavr, @denis-samatov (#14-#17), and @dajiaohuang (#19).
 * **Update**: Updated concept `convention/coding-standards.md` establishing the embedded asset synchronization invariant (`make sync-assets` and automated CI drift gate `TestDogfoodingAssetDrift`).
 * **Update**: Linked `architecture/layers.md` to `architecture/governance-model.md` (Specifies the 3-tier epistemic governance model and code-to-knowledge binding).
 * **Update**: Linked `architecture/governance-model.md` to `architecture/tooling-decision.md` (Implemented in deterministic Go CLI and MCP server).
