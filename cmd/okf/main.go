@@ -108,28 +108,22 @@ Flags (general):
 }
 
 func defaultBundle(args []string) (string, []string) {
-	var bundleDir string
-	var remaining []string
-
-	for i := range args {
-		arg := args[i]
-		if !strings.HasPrefix(arg, "-") && bundleDir == "" {
-			bundleDir = arg
-		} else {
-			remaining = append(remaining, arg)
-		}
+	// Look for ./knowledge or default to current directory.
+	fallback := "."
+	if info, err := os.Stat("knowledge"); err == nil && info.IsDir() {
+		fallback = "knowledge"
 	}
+	return splitOptionalPath(args, fallback)
+}
 
-	if bundleDir == "" {
-		// Look for ./knowledge or default to current directory
-		if info, err := os.Stat("knowledge"); err == nil && info.IsDir() {
-			bundleDir = "knowledge"
-		} else {
-			bundleDir = "."
-		}
+// splitOptionalPath consumes an optional positional path only when it is the
+// first argument. Everything else belongs to the command's FlagSet, including
+// values for flags such as "--limit 3" and "--type Fact".
+func splitOptionalPath(args []string, fallback string) (string, []string) {
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:]
 	}
-
-	return bundleDir, remaining
+	return fallback, args
 }
 
 func cmdValidate(args []string) {
@@ -531,17 +525,7 @@ func cmdInit(args []string) {
 }
 
 func cmdBootstrap(args []string) {
-	targetDir := "."
-	var subArgs []string
-
-	for i := range args {
-		arg := args[i]
-		if !strings.HasPrefix(arg, "-") && targetDir == "." {
-			targetDir = arg
-		} else {
-			subArgs = append(subArgs, arg)
-		}
-	}
+	targetDir, subArgs := splitOptionalPath(args, ".")
 
 	fs := flag.NewFlagSet("bootstrap", flag.ExitOnError)
 	name := fs.String("name", "", "Project name (defaults to target directory name)")
