@@ -70,6 +70,11 @@ handle format correctness.
 
 ### In Progress / Next Milestones
 
+- [ ] **Governance vs. Execution Context (P0 / Architecture RFC)**:
+  - Distinguish mandatory rules (`CONSTRAINT`) from optional execution aids (`CONTEXT`).
+  - Prevent critical compliance/evidence requirements from dropping out of progressive disclosure.
+  - Implement automated pre-edit constraint injection via `code_refs` and path matching so agents don't rely solely on proactive manual search for governance rules.
+  - Enforce deterministic post-task verification gates in `okf validate --strict`.
 - [ ] Community feedback and broader ecosystem adoption.
 - [ ] RFC: Hierarchical & Multi-Scope Memory (`scope: project` vs `scope: user`, Issue #11).
 - [ ] RFC: Federated Knowledge & Remote Vendoring (`https://` & `mcp://` scopes).
