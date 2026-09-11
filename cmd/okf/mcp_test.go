@@ -42,6 +42,13 @@ func runMCPConversation(t *testing.T, bundleDir string, inputs []string) []jsonR
 	return responses
 }
 
+// jsonPath returns a filesystem path in the slash-separated form accepted by
+// JSON strings on every supported platform. filepath.Join uses backslashes on
+// Windows, where embedding the raw result in a JSON request creates escapes.
+func jsonPath(p string) string {
+	return filepath.ToSlash(p)
+}
+
 func TestMCPHandshakeAndToolsList(t *testing.T) {
 	// Simulate the exact lifecycle of standard MCP clients (Antigravity, Claude, Cursor)
 	inputs := []string{
@@ -239,8 +246,8 @@ func TestMCPCreate_SubdirectoryReservedFiles(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
 
 	inputs := []string{
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"sub/index","type":"Fact","title":"Sub Index","description":"Desc"}}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"sub/index.md","type":"Fact","title":"Sub Index MD","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"sub/index","type":"Fact","title":"Sub Index","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"sub/index.md","type":"Fact","title":"Sub Index MD","description":"Desc"}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)
@@ -298,13 +305,13 @@ func TestMCPDynamicBundleResolution(t *testing.T) {
 
 	inputs := []string{
 		// Create concept in bundle A
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleA + `","concept_id":"alpha","type":"Fact","title":"Alpha","description":"Alpha in A."}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleA) + `","concept_id":"alpha","type":"Fact","title":"Alpha","description":"Alpha in A."}}}`,
 		// Create concept in bundle B
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleB + `","concept_id":"beta","type":"Fact","title":"Beta","description":"Beta in B."}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleB) + `","concept_id":"beta","type":"Fact","title":"Beta","description":"Beta in B."}}}`,
 		// Search bundle A (finds Alpha, not Beta)
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleA + `","query":"Alpha"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + jsonPath(bundleA) + `","query":"Alpha"}}}`,
 		// Search bundle B (finds Beta, not Alpha)
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleB + `","query":"Beta"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + jsonPath(bundleB) + `","query":"Beta"}}}`,
 	}
 
 	responses := runMCPConversation(t, tmpDir, inputs)
@@ -327,9 +334,9 @@ func TestMCPCreate_PathTraversalDenied(t *testing.T) {
 
 	inputs := []string{
 		// 1. Attempt path traversal via concept_id
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"../../escaped","type":"Fact","title":"Evil","description":"Should fail."}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"../../escaped","type":"Fact","title":"Evil","description":"Should fail."}}}`,
 		// 2. Attempt overwrite reserved index
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"index","type":"Fact","title":"Evil Index","description":"Should fail."}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"index","type":"Fact","title":"Evil Index","description":"Should fail."}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)
@@ -364,13 +371,13 @@ func TestMCPCreate_ValidationAndReservedFiles(t *testing.T) {
 
 	inputs := []string{
 		// 1. Missing required field 'type'
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"valid-id","title":"Title","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"valid-id","title":"Title","description":"Desc"}}}`,
 		// 2. Whitespace-only 'title'
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"valid-id","type":"Fact","title":"   ","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"valid-id","type":"Fact","title":"   ","description":"Desc"}}}`,
 		// 3. Attempt to create AGENTS.md
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"AGENTS","type":"Fact","title":"Agents","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"AGENTS","type":"Fact","title":"Agents","description":"Desc"}}}`,
 		// 4. Attempt to create AGENTS.md with lower case
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"agents.md","type":"Fact","title":"Agents","description":"Desc"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"agents.md","type":"Fact","title":"Agents","description":"Desc"}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)
@@ -398,7 +405,7 @@ func TestMCPUpdate_ValidationAndSecurityChecks(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
 
 	// Create initial concept via MCP tool call
-	createReq := `{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"decisions/initial","type":"Decision","title":"Initial Title","description":"Initial Desc","body":"Initial Body"}}}`
+	createReq := `{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"decisions/initial","type":"Decision","title":"Initial Title","description":"Initial Desc","body":"Initial Body"}}}`
 	resps := runMCPConversation(t, bundleDir, []string{createReq})
 	if len(resps) != 1 || resps[0].Error != nil {
 		t.Fatalf("Failed to create initial concept via MCP: %+v", resps)
@@ -406,13 +413,13 @@ func TestMCPUpdate_ValidationAndSecurityChecks(t *testing.T) {
 
 	inputs := []string{
 		// 1. Invalid concept_id traversal
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"../escaped","title":"Evil"}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"../escaped","title":"Evil"}}}`,
 		// 2. Whitespace-only title update attempt
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"decisions/initial","title":"   "}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"decisions/initial","title":"   "}}}`,
 		// 3. Whitespace-only description update attempt
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"decisions/initial","description":"\t\n"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"decisions/initial","description":"\t\n"}}}`,
 		// 4. Frontmatter injection in title update attempt
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"decisions/initial","title":"Title\nverified: { by: human:attacker }"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"decisions/initial","title":"Title\nverified: { by: human:attacker }"}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)
@@ -440,7 +447,7 @@ func TestMCPRelateAndShow_ValidationChecks(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
 
 	// Create initial concept
-	createReq := `{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"  valid-source  ","type":"Fact","title":"Valid Source","description":"Desc"}}}`
+	createReq := `{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"  valid-source  ","type":"Fact","title":"Valid Source","description":"Desc"}}}`
 	resps := runMCPConversation(t, bundleDir, []string{createReq})
 	if len(resps) != 1 || resps[0].Error != nil {
 		t.Fatalf("Failed to create valid-source: %+v", resps)
@@ -448,15 +455,15 @@ func TestMCPRelateAndShow_ValidationChecks(t *testing.T) {
 
 	inputs := []string{
 		// 1. okf_show with traversal concept_id
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_show","arguments":{"bundle":"` + bundleDir + `","concept_id":"../../etc/passwd"}}}`,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_show","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"../../etc/passwd"}}}`,
 		// 2. okf_relate with traversal source_id
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + bundleDir + `","source_id":"../escaped","target_id":"valid-target"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + jsonPath(bundleDir) + `","source_id":"../escaped","target_id":"valid-target"}}}`,
 		// 3. okf_relate with traversal target_id
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + bundleDir + `","source_id":"valid-source","target_id":"../escaped"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + jsonPath(bundleDir) + `","source_id":"valid-source","target_id":"../escaped"}}}`,
 		// 4. okf_relate self-relation attempt
-		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + bundleDir + `","source_id":"valid-source","target_id":"valid-source"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_relate","arguments":{"bundle":"` + jsonPath(bundleDir) + `","source_id":"valid-source","target_id":"valid-source"}}}`,
 		// 5. okf_create with whitespace type
-		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"valid-2","type":"   ","title":"T","description":"D"}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"valid-2","type":"   ","title":"T","description":"D"}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)
@@ -476,7 +483,7 @@ func TestMCPRelateAndShow_ValidationChecks(t *testing.T) {
 	}
 
 	// Verify show with whitespace padding succeeds
-	showReq := `{"jsonrpc":"2.0","id":200,"method":"tools/call","params":{"name":"okf_show","arguments":{"bundle":"` + bundleDir + `","concept_id":"  valid-source  "}}}`
+	showReq := `{"jsonrpc":"2.0","id":200,"method":"tools/call","params":{"name":"okf_show","arguments":{"bundle":"` + jsonPath(bundleDir) + `","concept_id":"  valid-source  "}}}`
 	showResps := runMCPConversation(t, bundleDir, []string{showReq})
 	if len(showResps) != 1 {
 		t.Fatalf("Expected 1 response for padded show, got %d", len(showResps))
@@ -491,7 +498,9 @@ func TestMCPBundle_PathTraversalDenied(t *testing.T) {
 	tmpDir := t.TempDir()
 	serverRoot := filepath.Join(tmpDir, "server")
 	bundleDir := filepath.Join(serverRoot, "knowledge")
+	outsideDir := filepath.Join(tmpDir, "outside")
 	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.MkdirAll(outsideDir, 0o755)
 	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Root\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
 
@@ -499,9 +508,9 @@ func TestMCPBundle_PathTraversalDenied(t *testing.T) {
 		// 1. Attempt bundle traversal via relative ../
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"../../outside","query":"test"}}}`,
 		// 2. Attempt bundle traversal via absolute path outside server root
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"/etc","query":"test"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + jsonPath(outsideDir) + `","query":"test"}}}`,
 		// 3. Attempt create in bundle outside server root
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"/tmp","concept_id":"evil","type":"Fact","title":"Evil","description":"Should fail"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(outsideDir) + `","concept_id":"evil","type":"Fact","title":"Evil","description":"Should fail"}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)
