@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -72,19 +73,48 @@ func ParseFlowMapping(s string) map[string]string {
 		s = s[1 : len(s)-1]
 	}
 	out := make(map[string]string)
-	parts := strings.Split(s, ",")
+	parts := splitFlowItems(s)
 	for _, part := range parts {
-		before, after, ok := strings.Cut(part, ":")
+		before, after, ok := cutYAMLPair(part)
 		if !ok {
 			continue
 		}
-		k := strings.TrimSpace(before)
+		k := unquote(before)
 		v := unquote(after)
 		if k != "" {
 			out[k] = v
 		}
 	}
 	return out
+}
+
+func cutYAMLPair(s string) (string, string, bool) {
+	var quote rune
+	escaped := false
+	for i, r := range s {
+		if quote != 0 {
+			if quote == '"' && escaped {
+				escaped = false
+				continue
+			}
+			if quote == '"' && r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		if r == '\'' || r == '"' {
+			quote = r
+			continue
+		}
+		if r == ':' {
+			return s[:i], s[i+1:], true
+		}
+	}
+	return s, "", false
 }
 
 // ParseStringList parses `[a, b, c]` or block list items.
@@ -94,7 +124,7 @@ func ParseStringList(inline string, blockLines []string) []string {
 		s := strings.TrimSpace(inline)
 		if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
 			s = s[1 : len(s)-1]
-			for _, item := range strings.Split(s, ",") {
+			for _, item := range splitFlowItems(s) {
 				it := unquote(item)
 				if it != "" {
 					out = append(out, it)
@@ -121,6 +151,51 @@ func ParseStringList(inline string, blockLines []string) []string {
 	return out
 }
 
+// splitFlowItems separates comma-delimited YAML flow values while preserving
+// commas inside quoted strings and nested flow collections.
+func splitFlowItems(s string) []string {
+	var parts []string
+	start := 0
+	depth := 0
+	var quote rune
+	escaped := false
+
+	for i, r := range s {
+		if quote != 0 {
+			if quote == '"' && escaped {
+				escaped = false
+				continue
+			}
+			if quote == '"' && r == '\\' {
+				escaped = true
+				continue
+			}
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+
+		switch r {
+		case '\'', '"':
+			quote = r
+		case '{', '[':
+			depth++
+		case '}', ']':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	parts = append(parts, s[start:])
+	return parts
+}
+
 // ParseConcept parses a concept's raw text and relative path into a Concept struct.
 func ParseConcept(relPath, content string) (*Concept, error) {
 	id := strings.TrimSuffix(relPath, ".md")
@@ -130,11 +205,12 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 	}
 
 	c := &Concept{
-		ID:         id,
-		Path:       relPath,
-		Body:       body,
-		RawContent: content,
-		Extra:      make(map[string]any),
+		ID:          id,
+		Path:        relPath,
+		Body:        body,
+		RawContent:  content,
+		Extra:       make(map[string]any),
+		extraBlocks: make(map[string]bool),
 	}
 
 	// Parse top-level frontmatter blocks
@@ -160,12 +236,12 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 			continue
 		}
 
-		before, after, ok := strings.Cut(line, ":")
+		before, after, ok := cutYAMLPair(line)
 		if !ok {
 			continue
 		}
 
-		key := strings.TrimSpace(before)
+		key := unquote(before)
 		val := strings.TrimSpace(after)
 		curBlock = &fmBlock{inline: val}
 		blocks[key] = curBlock
@@ -204,11 +280,8 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 			} else if b.inline != "" && strings.HasPrefix(b.inline, "[") {
 				// List of flow pairs
 				inner := strings.TrimPrefix(strings.TrimSuffix(b.inline, "]"), "[")
-				for _, part := range strings.Split(inner, "},") {
+				for _, part := range splitFlowItems(inner) {
 					part = strings.TrimSpace(part)
-					if !strings.HasSuffix(part, "}") {
-						part += "}"
-					}
 					m := ParseFlowMapping(part)
 					if m["by"] != "" || m["at"] != "" {
 						c.Verified = append(c.Verified, Verified{By: m["by"], At: m["at"]})
@@ -239,9 +312,10 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 			}
 		default:
 			if len(b.lines) == 0 {
-				c.Extra[k] = unquote(b.inline)
+				c.Extra[k] = parseExtraValue(b.inline)
 			} else {
-				c.Extra[k] = b.lines
+				c.Extra[k] = normalizeBlockLines(b.lines)
+				c.extraBlocks[k] = true
 			}
 		}
 	}
@@ -249,15 +323,52 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 	return c, nil
 }
 
+func normalizeBlockLines(lines []string) []string {
+	minIndent := -1
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " \t"))
+		if minIndent == -1 || indent < minIndent {
+			minIndent = indent
+		}
+	}
+	if minIndent < 0 {
+		minIndent = 0
+	}
+
+	normalized := make([]string, len(lines))
+	for i, line := range lines {
+		if len(line) >= minIndent {
+			line = line[minIndent:]
+		}
+		normalized[i] = line
+	}
+	return normalized
+}
+
+func parseExtraValue(s string) any {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var value any
+	if json.Unmarshal([]byte(s), &value) == nil {
+		return value
+	}
+	return unquote(s)
+}
+
 func parseBlockMapping(lines []string) map[string]string {
 	out := make(map[string]string)
 	for _, l := range lines {
 		trimmed := strings.TrimSpace(l)
 		trimmed = strings.TrimPrefix(trimmed, "-")
-		idx := strings.Index(trimmed, ":")
-		if idx != -1 {
-			k := strings.TrimSpace(trimmed[:idx])
-			v := unquote(trimmed[idx+1:])
+		before, after, ok := cutYAMLPair(trimmed)
+		if ok {
+			k := unquote(before)
+			v := unquote(after)
 			out[k] = v
 		}
 	}
@@ -287,10 +398,10 @@ func parseListOfMappings(lines []string) []map[string]string {
 			}
 		}
 
-		idx := strings.Index(trimmed, ":")
-		if idx != -1 && cur != nil {
-			k := strings.TrimSpace(trimmed[:idx])
-			v := unquote(trimmed[idx+1:])
+		before, after, ok := cutYAMLPair(trimmed)
+		if ok && cur != nil {
+			k := unquote(before)
+			v := unquote(after)
 			cur[k] = v
 		}
 	}
@@ -318,6 +429,28 @@ func safeYAMLString(s string) string {
 		}
 	}
 	return s
+}
+
+func safeYAMLKey(s string) string {
+	plain := s != ""
+	for i, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' || (i > 0 && r >= '0' && r <= '9') || (i > 0 && (r == '-' || r == '.')) {
+			continue
+		}
+		plain = false
+		break
+	}
+	if plain {
+		switch strings.ToLower(s) {
+		case "null", "true", "false", "yes", "no", "on", "off":
+			plain = false
+		}
+	}
+	if plain {
+		return s
+	}
+	encoded, _ := json.Marshal(s)
+	return string(encoded)
 }
 
 // SerializeConcept converts a Concept into standard OKF Markdown with YAML frontmatter.
@@ -383,18 +516,37 @@ func SerializeConcept(c *Concept) string {
 		}
 	}
 
-	// Preserve extra unknown fields
-	for k, v := range c.Extra {
+	// Preserve extra unknown fields in canonical key order. String values are
+	// always JSON-quoted (valid YAML) so their scalar type and content survive a
+	// round trip without allowing frontmatter delimiter injection.
+	extraKeys := make([]string, 0, len(c.Extra))
+	for k := range c.Extra {
+		extraKeys = append(extraKeys, k)
+	}
+	sort.Strings(extraKeys)
+	for _, k := range extraKeys {
+		v := c.Extra[k]
+		safeKey := safeYAMLKey(k)
+		if c.extraBlocks[k] {
+			if lines, ok := v.([]string); ok {
+				fmt.Fprintf(&sb, "%s:\n", safeKey)
+				for _, line := range lines {
+					line = strings.ReplaceAll(strings.ReplaceAll(line, "\r", " "), "\n", " ")
+					fmt.Fprintf(&sb, "  %s\n", line)
+				}
+				continue
+			}
+		}
 		switch val := v.(type) {
 		case string:
-			fmt.Fprintf(&sb, "%s: %s\n", k, val)
-		case []string:
-			fmt.Fprintf(&sb, "%s:\n", k)
-			for _, l := range val {
-				fmt.Fprintf(&sb, "  %s\n", l)
-			}
+			encoded, _ := json.Marshal(val)
+			fmt.Fprintf(&sb, "%s: %s\n", safeKey, encoded)
 		default:
-			fmt.Fprintf(&sb, "%s: %v\n", k, val)
+			encoded, err := json.Marshal(val)
+			if err != nil {
+				encoded, _ = json.Marshal(fmt.Sprint(val))
+			}
+			fmt.Fprintf(&sb, "%s: %s\n", safeKey, encoded)
 		}
 	}
 

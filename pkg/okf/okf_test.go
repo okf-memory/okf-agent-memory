@@ -3,6 +3,7 @@ package okf_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -54,11 +55,91 @@ This is the body text with a footnote.[^src1]
 	}
 
 	serialized := okf.SerializeConcept(c)
-	if !strings.Contains(serialized, "custom_field: custom_value") {
+	if !strings.Contains(serialized, `custom_field: "custom_value"`) {
 		t.Errorf("Serialized output did not preserve custom_field: %s", serialized)
 	}
 	if !strings.Contains(serialized, "type: Decision") {
 		t.Errorf("Serialized output missing type: %s", serialized)
+	}
+}
+
+func TestFlowCollectionsPreserveQuotedCommas(t *testing.T) {
+	list := okf.ParseStringList(`["research, development", ML]`, nil)
+	if len(list) != 2 || list[0] != "research, development" || list[1] != "ML" {
+		t.Fatalf("ParseStringList() = %#v", list)
+	}
+
+	mapping := okf.ParseFlowMapping(`{ by: "human:reviewer, primary", at: "2026-09-10T00:00:00Z" }`)
+	if mapping["by"] != "human:reviewer, primary" {
+		t.Fatalf("ParseFlowMapping()[by] = %q", mapping["by"])
+	}
+}
+
+func TestExtraMetadataSerializationIsSafeAndDeterministic(t *testing.T) {
+	c := &okf.Concept{
+		Type: "Fact",
+		Body: "# Fact",
+		Extra: map[string]any{
+			"zeta":         "null",
+			"alpha":        "line one\n---\nline two",
+			"unsafe:key":   "preserved",
+			"count":        3,
+			"enabled":      true,
+			"labels":       []string{"alpha", "beta"},
+			"settings":     map[string]any{"threshold": 0.5},
+			"display name": "visible",
+			"ключ":         "значение",
+		},
+	}
+
+	serialized := okf.SerializeConcept(c)
+	if strings.Index(serialized, "alpha:") > strings.Index(serialized, "zeta:") {
+		t.Fatalf("extra keys are not sorted: %s", serialized)
+	}
+	if strings.Count(serialized, "\n---\n") != 1 {
+		t.Fatalf("extra value injected a frontmatter delimiter: %s", serialized)
+	}
+
+	parsed, err := okf.ParseConcept("test.md", serialized)
+	if err != nil {
+		t.Fatalf("ParseConcept() failed after serialization: %v", err)
+	}
+	if parsed.Extra["zeta"] != "null" || parsed.Extra["alpha"] != "line one\n---\nline two" || parsed.Extra["unsafe:key"] != "preserved" || parsed.Extra["display name"] != "visible" || parsed.Extra["ключ"] != "значение" {
+		t.Fatalf("extra metadata did not round-trip: %#v", parsed.Extra)
+	}
+	if parsed.Extra["count"] != float64(3) || parsed.Extra["enabled"] != true {
+		t.Fatalf("extra scalar types did not round-trip: %#v", parsed.Extra)
+	}
+	if !reflect.DeepEqual(parsed.Extra["labels"], []any{"alpha", "beta"}) || !reflect.DeepEqual(parsed.Extra["settings"], map[string]any{"threshold": 0.5}) {
+		t.Fatalf("extra collection types did not round-trip: %#v", parsed.Extra)
+	}
+}
+
+func TestExtraBlockMetadataIsStableAcrossRoundTrips(t *testing.T) {
+	raw := `---
+type: Fact
+custom:
+  nested: value
+  items:
+    - one
+    - two
+---
+
+# Fact
+`
+
+	first, err := okf.ParseConcept("test.md", raw)
+	if err != nil {
+		t.Fatalf("first ParseConcept() failed: %v", err)
+	}
+	firstSerialized := okf.SerializeConcept(first)
+	second, err := okf.ParseConcept("test.md", firstSerialized)
+	if err != nil {
+		t.Fatalf("second ParseConcept() failed: %v", err)
+	}
+	secondSerialized := okf.SerializeConcept(second)
+	if firstSerialized != secondSerialized {
+		t.Fatalf("block metadata drifted across round trips:\nfirst:\n%s\nsecond:\n%s", firstSerialized, secondSerialized)
 	}
 }
 

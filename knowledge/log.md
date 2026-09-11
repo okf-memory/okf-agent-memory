@@ -2,6 +2,7 @@
 * **Update**: Established Issue-First contribution policy and GitFlow branching strategy designating `develop` as default integration branch for PRs and reserving `main` strictly for tagged releases in `convention/contributing.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, and `docs/RELEASE_PLAYBOOK.md`.
 
 ## 2026-09-10
+* **Creation**: Documented concept `architecture/metadata-roundtrip.md` (Safe Unknown Metadata Round-Trip).
 * **Creation**: Documented concept `architecture/relationship-identity.md` (Relationship Identity and Logging).
 * **Creation**: Documented concept `architecture/search-tokenization.md` (Unicode and Deterministic Search).
 

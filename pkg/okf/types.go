@@ -25,6 +25,7 @@ type Concept struct {
 	Extra       map[string]any       `json:"extra,omitempty"` // Preserved unknown fields
 	Body        string               `json:"body"`            // Markdown body after frontmatter
 	RawContent  string               `json:"raw_content,omitempty"`
+	extraBlocks map[string]bool
 }
 
 // Generated records who authored the concept and when.
