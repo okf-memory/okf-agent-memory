@@ -36,12 +36,15 @@ func tokenize(s string) []string {
 // MaxSearchLimit defines the maximum allowable search results returned to prevent resource exhaustion.
 const MaxSearchLimit = 100
 
+// MaxQueryLength defines the maximum query string length in runes/bytes evaluated to prevent resource exhaustion.
+const MaxQueryLength = 1000
+
 // Search queries the bundle using in-memory BM25/TF-IDF token scoring over frontmatter and body.
 func (b *Bundle) Search(query string, limit int) []SearchResult {
-	if len(query) > 1000 {
+	if len(query) > MaxQueryLength {
 		runes := []rune(query)
-		if len(runes) > 1000 {
-			query = string(runes[:1000])
+		if len(runes) > MaxQueryLength {
+			query = string(runes[:MaxQueryLength])
 		}
 	}
 
