@@ -6,6 +6,7 @@
 [![Tooling](https://img.shields.io/badge/Tooling-Go_1.26_%7C_Zero_Deps-00ADD8.svg)](pkg/okf)
 [![Protocol](https://img.shields.io/badge/MCP-Ready-purple.svg)](cmd/okf)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg)](https://github.com/sponsors/sknr)
 
 ---
 
@@ -211,6 +212,12 @@ make check
 * [OKF v0.2 Compatibility Matrix](docs/OKF-COMPATIBILITY.md) — Specification validation analysis.
 * [Why OKF Agent Memory?](knowledge/project/value-proposition.md) — Detailed value proposition & differentiators.
 * [Alternatives & Ecosystem Comparison](docs/ALTERNATIVES.md) — Comparison with Mem0, Letta, and ad-hoc markdown files.
+
+---
+
+## 💖 Support & Sponsoring
+
+If you find **OKF Agent Memory** valuable for your autonomous agent workflows, consider [sponsoring the project on GitHub](https://github.com/sponsors/sknr) to help support continuous development, security hardening, and spec compliance!
 
 ---
 
