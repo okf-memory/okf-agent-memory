@@ -215,6 +215,18 @@ make check
 
 ---
 
+## 👥 Contributors
+
+Thank you to all the wonderful contributors who have helped build and refine OKF Agent Memory!
+
+<a href="https://github.com/okf-memory/okf-agent-memory/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=okf-memory/okf-agent-memory" alt="OKF Agent Memory Contributors" />
+</a>
+
+Contributions of all kinds are warmly welcomed! See [CONTRIBUTING.md](CONTRIBUTING.md) and [CONTRIBUTORS.md](CONTRIBUTORS.md) for details.
+
+---
+
 ## 💖 Support & Sponsoring
 
 If you find **OKF Agent Memory** valuable for your autonomous agent workflows, consider [sponsoring the project on GitHub](https://github.com/sponsors/sknr) to help support continuous development, security hardening, and spec compliance!
