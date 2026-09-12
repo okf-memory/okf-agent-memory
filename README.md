@@ -4,6 +4,8 @@
 
 [![Specification](https://img.shields.io/badge/Specification-OKF_v0.2-blue.svg)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 [![Tooling](https://img.shields.io/badge/Tooling-Go_1.26_%7C_Zero_Deps-00ADD8.svg)](pkg/okf)
+[![CI](https://github.com/okf-memory/okf-agent-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/okf-memory/okf-agent-memory/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/okf-memory/okf-agent-memory)](https://goreportcard.com/report/github.com/okf-memory/okf-agent-memory)
 [![Protocol](https://img.shields.io/badge/MCP-Ready-purple.svg)](cmd/okf)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg)](https://github.com/sponsors/sknr)
@@ -186,6 +188,7 @@ okf-agent-memory/
 ├── AGENTS.md               # Operating instructions for AI coding agents
 ├── CONTRIBUTING.md         # Contribution guidelines & development workflow
 ├── CONTRIBUTORS.md         # Community contributors & acknowledgements
+├── CODE_OF_CONDUCT.md      # Contributor Covenant v2.1 code of conduct
 ├── Makefile                # Build, test, lint, validation & release targets
 ├── LICENSE                 # MIT License
 ├── README.md               # Main repository documentation
@@ -214,6 +217,7 @@ make check
 * [OKF Agent Memory Convention v0.1](docs/CONVENTION.md) — Behavioral rules and lifecycle specification.
 * [Project Roadmap & Milestones](docs/ROADMAP.md) — Phased development plan.
 * [Release Playbook](docs/RELEASE_PLAYBOOK.md) — Versioning, CI/CD pipeline, and distribution procedures.
+* [Release Notes & History](docs/releases/README.md) — Versioned changelogs and historical release notes archive.
 * [OKF v0.2 Compatibility Matrix](docs/OKF-COMPATIBILITY.md) — Specification validation analysis.
 * [Why OKF Agent Memory?](knowledge/project/value-proposition.md) — Detailed value proposition & differentiators.
 * [Alternatives & Ecosystem Comparison](docs/ALTERNATIVES.md) — Comparison with Mem0, Letta, and ad-hoc markdown files.

@@ -72,6 +72,7 @@ okf-agent-memory/
 ├── AGENTS.md               # Instructions for AI agents working in this repo
 ├── CONTRIBUTING.md         # Contribution guidelines & development workflow
 ├── CONTRIBUTORS.md         # Community contributors & acknowledgements
+├── CODE_OF_CONDUCT.md      # Contributor Covenant v2.1 code of conduct
 └── Makefile                # Memory validation, test, sync-assets & release targets
 ```
 

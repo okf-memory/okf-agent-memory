@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security Vulnerability Report
+    url: https://github.com/okf-memory/okf-agent-memory/security/advisories/new
+    about: Please report security vulnerabilities privately via GitHub Security Advisories or to security@okf-memory.dev.
+  - name: 💬 Community Discussion & Q&A
+    url: https://github.com/okf-memory/okf-agent-memory/discussions
+    about: Ask questions, share ideas, and discuss persistent AI agent memory workflows with the community.
