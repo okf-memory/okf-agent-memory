@@ -32,6 +32,7 @@ The project progresses through 11 structured phases designed to take OKF Agent M
 | **Phase 9** | **Security & Privacy** | **Completed** | `SECURITY.md` (data boundaries, secret prevention, PII protection, redaction). |
 | **Phase 10**| **Documentation** | **Completed** | `GETTING_STARTED.md`, `CLI.md`, `SECURITY.md`, `CONTRIBUTING.md`, `README.md`. |
 | **Phase 11**| **Release & CI/CD** | **Completed** | GitHub Actions CI/CD, cross-platform release binaries, starter pack packaging, Homebrew tap. |
+| **Phase 12**| **Governance & Code Binding** | **Completed** | 3-tier epistemic governance (`constraint`, `hold`, `context`), `code_refs` binding, `--for-path` discovery, and dogfooding parity test. |
 
 ## Inter-Concept Connections
 

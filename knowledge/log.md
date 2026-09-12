@@ -1,3 +1,9 @@
+## 2026-09-12
+* **Release**: Published version v0.2.0 — Epistemic Governance & Code-to-Knowledge Binding Release.
+* **Infrastructure**: Automated GitHub Actions release pipeline to ingest release notes from `docs/releases/${VERSION}.md` with fail-fast CI gate.
+* **Community**: Achieved 100% GitHub Community Health with Contributor Covenant v2.1 `CODE_OF_CONDUCT.md`, `CONTRIBUTORS.md` acknowledgements, interactive avatar grid, GitHub Sponsors configuration, and Dependabot automation.
+* **Update**: Updated `knowledge/roadmap/milestones.md` marking Phase 12 (Governance & Code Binding) as completed.
+
 ## 2026-09-11
 * **Release**: Prepared major milestone Release v0.2.0 — Epistemic Governance & Code-to-Knowledge Binding Release integrating 3-tier authority model (constraint, hold, context), code_refs and scoped pre-edit discovery (--for-path in CLI and MCP), automated dogfooding parity test (TestDogfoodingAssetDrift), path traversal hardening (CWE-22), and community contributions from @krakozavr, @denis-samatov (#14-#17), and @dajiaohuang (#19).
 * **Update**: Updated concept `convention/coding-standards.md` establishing the embedded asset synchronization invariant (`make sync-assets` and automated CI drift gate `TestDogfoodingAssetDrift`).
