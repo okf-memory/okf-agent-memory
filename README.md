@@ -156,6 +156,7 @@ okf-agent-memory/
 │   ├── okf/                # Standalone CLI and embedded MCP server (`stdio`)
 │   └── okf-benchmark/      # Automated benchmark runner for LLM TTFT & token measurements
 ├── docs/                   # Guides, specifications, architecture & release playbook
+│   ├── releases/           # Versioned release notes & changelog archive (v0.1.0 – v0.2.0)
 │   ├── AGENT_TESTING.md    # Multi-agent testing, prompt scenarios & compatibility matrix
 │   ├── ALTERNATIVES.md     # Comparison against Mem0, Letta, and ad-hoc markdown
 │   ├── CLI.md              # Complete command-line & MCP tool reference
@@ -164,7 +165,8 @@ okf-agent-memory/
 │   ├── OKF-COMPATIBILITY.md# OKF v0.2 spec compatibility analysis
 │   ├── RELEASE_PLAYBOOK.md # Automated release process & version tagging
 │   ├── ROADMAP.md          # Project roadmap & milestones
-│   └── SECURITY.md         # Data governance, secret prevention & PII rules
+│   ├── SECURITY.md         # Data governance, secret prevention & PII rules
+│   └── SECURITY_AUDIT.md   # Adversarial security audit protocol & Jules reviewer instructions
 ├── examples/               # Domain-neutral reference OKF v0.2 bundles
 │   ├── books/              # Literature & cognitive science knowledge bundle
 │   ├── coaching/           # Executive coaching & client session bundle
@@ -173,14 +175,17 @@ okf-agent-memory/
 │   ├── index.md            # Root progressive disclosure index (okf_version: "0.2")
 │   ├── log.md              # Dated change log (ISO 8601 YYYY-MM-DD)
 │   ├── project/            # Overview & value propositions
-│   ├── architecture/       # 5-tier architecture & tooling decisions
+│   ├── architecture/       # 5-tier architecture, governance model & decisions
 │   ├── convention/         # Principles & lifecycle workflows
 │   └── roadmap/            # Milestones
 ├── packaging/              # Distribution packaging
 │   └── homebrew/           # Official Homebrew formula & tap instructions
 ├── pkg/okf/                # Zero-dependency Go core library (parser, validator, BM25, MCP, bootstrap)
+│   └── assets/             # Embedded bootstrap templates & skills mirrored via `make sync-assets`
+├── scripts/                # Verification & automated audit review helpers (e.g. Jules integration)
 ├── AGENTS.md               # Operating instructions for AI coding agents
 ├── CONTRIBUTING.md         # Contribution guidelines & development workflow
+├── CONTRIBUTORS.md         # Community contributors & acknowledgements
 ├── Makefile                # Build, test, lint, validation & release targets
 ├── LICENSE                 # MIT License
 ├── README.md               # Main repository documentation

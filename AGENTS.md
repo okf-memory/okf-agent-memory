@@ -67,9 +67,11 @@ okf-agent-memory/
 │   ├── architecture/       # Architectural decisions (ADRs), stack & data models
 │   ├── convention/         # Coding guidelines & agent workflows
 │   └── roadmap/            # Phased development roadmap & milestones
-├── docs/                   # Guides, specifications, CLI reference & release playbook
+├── docs/                   # Guides, specifications, CLI reference, releases & playbook
+│   └── releases/           # Versioned release notes & changelog archive
 ├── AGENTS.md               # Instructions for AI agents working in this repo
 ├── CONTRIBUTING.md         # Contribution guidelines & development workflow
+├── CONTRIBUTORS.md         # Community contributors & acknowledgements
 └── Makefile                # Memory validation, test, sync-assets & release targets
 ```
 
