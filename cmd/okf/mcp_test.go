@@ -93,6 +93,66 @@ func TestMCPHandshakeAndToolsList(t *testing.T) {
 	}
 }
 
+func TestMCPToolsListOutputSchemas(t *testing.T) {
+	// Every tool must advertise an outputSchema so clients can validate
+	// structured results (and typed confirmation strings) without guessing.
+	for _, tool := range getMCPTools() {
+		name, _ := tool["name"].(string)
+		schema, ok := tool["outputSchema"].(map[string]any)
+		if !ok {
+			t.Errorf("Tool %q is missing outputSchema", name)
+			continue
+		}
+		if schema["type"] != "object" && schema["type"] != "array" && schema["type"] != "string" {
+			t.Errorf("Tool %q has unexpected outputSchema type %v", name, schema["type"])
+		}
+		if _, ok := schema["description"].(string); !ok {
+			t.Errorf("Tool %q outputSchema is missing a description", name)
+		}
+	}
+}
+
+func TestMCPOutputSchemasV02Properties(t *testing.T) {
+	// Schemas must cover the OKF v0.2.0 struct fields clients rely on
+	// (governance/code_refs for --for-path constraint checks, body for
+	// full-concept reads, gate/broken-link diagnostics for validation).
+	byName := map[string]map[string]any{}
+	for _, tool := range getMCPTools() {
+		name, _ := tool["name"].(string)
+		byName[name] = tool
+	}
+	props := func(tool string) map[string]any {
+		t.Helper()
+		schema, ok := byName[tool]["outputSchema"].(map[string]any)
+		if !ok {
+			t.Fatalf("Tool %q is missing outputSchema", tool)
+		}
+		if schema["type"] == "array" {
+			items, _ := schema["items"].(map[string]any)
+			p, _ := items["properties"].(map[string]any)
+			return p
+		}
+		p, _ := schema["properties"].(map[string]any)
+		return p
+	}
+	for _, want := range []string{"governance", "code_refs"} {
+		if _, ok := props("okf_search")[want]; !ok {
+			t.Errorf("okf_search outputSchema missing %q", want)
+		}
+		if _, ok := props("okf_show")[want]; !ok {
+			t.Errorf("okf_show outputSchema missing %q", want)
+		}
+	}
+	if _, ok := props("okf_show")["body"]; !ok {
+		t.Errorf("okf_show outputSchema missing %q", "body")
+	}
+	for _, want := range []string{"declared_version", "gate_findings", "broken_links"} {
+		if _, ok := props("okf_validate")[want]; !ok {
+			t.Errorf("okf_validate outputSchema missing %q", want)
+		}
+	}
+}
+
 func TestMCPNotificationsAreSilent(t *testing.T) {
 	// None of these notifications should produce ANY stdout line
 	inputs := []string{
