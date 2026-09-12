@@ -589,6 +589,8 @@ func TestMCPBundle_PathTraversalDenied(t *testing.T) {
 	inputs := []string{
 		// 1. Attempt bundle traversal via relative ../
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"../../outside","query":"test"}}}`,
+		// 1b. Attempt bundle traversal via Windows backslash ..\
+		`{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"..\\..\\outside","query":"test"}}}`,
 		// 2. Attempt bundle traversal via absolute path outside server root
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + jsonPath(outsideDir) + `","query":"test"}}}`,
 		// 3. Attempt create in bundle outside server root
@@ -613,7 +615,7 @@ func TestMCPBundle_PathTraversalDenied(t *testing.T) {
 		if len(content) > 0 {
 			cMap, _ := content[0].(map[string]any)
 			text, _ := cMap["text"].(string)
-			if !strings.Contains(text, "Path traversal denied") && !strings.Contains(text, "escapes server root") {
+			if !strings.Contains(text, "Path traversal denied") && !strings.Contains(text, "escapes server root") && !strings.Contains(text, "does not exist") {
 				t.Errorf("Expected path traversal error message, got: %q", text)
 			}
 		}

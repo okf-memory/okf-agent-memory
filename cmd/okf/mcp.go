@@ -381,6 +381,8 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 		}
 	}
 
+	normTarget := filepath.ToSlash(target)
+
 	// Confinement check: if s.rootDir is configured, target must stay within s.rootDir
 	if s.rootDir != "" {
 		absRoot, err := filepath.EvalSymlinks(s.rootDir)
@@ -394,10 +396,10 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 		}
 
 		var absTarget string
-		if filepath.IsAbs(target) {
-			absTarget = target
+		if filepath.IsAbs(normTarget) {
+			absTarget = normTarget
 		} else {
-			absTarget = filepath.Join(s.rootDir, target)
+			absTarget = filepath.Join(s.rootDir, filepath.FromSlash(normTarget))
 		}
 
 		// Walk up to find the closest ancestor that exists and evaluate its symlinks
@@ -429,8 +431,9 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 		realTarget := filepath.Join(parts...)
 
 		rel, err := filepath.Rel(absRoot, realTarget)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return "", fmt.Errorf("bundle directory %q escapes server root %q", target, s.rootDir)
+		normRel := filepath.ToSlash(rel)
+		if err != nil || rel == ".." || normRel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || strings.HasPrefix(normRel, "../") {
+			return "", fmt.Errorf("path traversal denied: bundle directory %q escapes server root %q", target, s.rootDir)
 		}
 
 		return realTarget, nil

@@ -23,6 +23,8 @@ func TestSaveConceptRejectsTraversal(t *testing.T) {
 		{"direct parent escape", "../evil.md"},
 		{"nested escape", "a/b/../../../evil.md"},
 		{"escape via trailing dots", "project/../../evil.md"},
+		{"windows backslash traversal", "..\\evil.md"},
+		{"nested windows backslash escape", "a\\b\\..\\..\\..\\evil.md"},
 	}
 
 	for _, tc := range cases {
@@ -659,6 +661,37 @@ func TestSaveConceptActorWhitespaceFallback(t *testing.T) {
 	}
 	if c2.Generated == nil || c2.Generated.By != "agent/custom" {
 		t.Errorf("Expected trimmed actor 'agent/custom', got %+v", c2.Generated)
+	}
+}
+
+// TestValidateCodeRefsBackslashTraversal verifies that Validate catches backslash traversal in code_refs regardless of OS.
+func TestValidateCodeRefsBackslashTraversal(t *testing.T) {
+	bundleDir := t.TempDir()
+	if err := InitBundle(bundleDir); err != nil {
+		t.Fatalf("InitBundle failed: %v", err)
+	}
+
+	c := &Concept{
+		ID:          "concept-refs",
+		Path:        "concept-refs.md",
+		Type:        "Fact",
+		Title:       "Refs",
+		Description: "Testing refs",
+		CodeRefs:    []string{"..\\..\\etc\\passwd", "pkg/../../secret"},
+		Body:        "Body",
+	}
+	if err := SaveConcept(bundleDir, c, true, false, false, "test"); err != nil {
+		t.Fatalf("SaveConcept failed: %v", err)
+	}
+
+	b, err := LoadBundle(bundleDir)
+	if err != nil {
+		t.Fatalf("LoadBundle failed: %v", err)
+	}
+
+	res := Validate(b, ValidateOptions{Strict: true})
+	if len(res.GateFindings) < 2 {
+		t.Errorf("Expected at least 2 gate findings for code_refs traversal, got %d (%v)", len(res.GateFindings), res.GateFindings)
 	}
 }
 

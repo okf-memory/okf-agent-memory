@@ -207,10 +207,11 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			if refTrimmed == "" {
 				continue
 			}
-			cleanRef := filepath.Clean(refTrimmed)
+			normRef := filepath.ToSlash(refTrimmed)
+			cleanRef := filepath.Clean(normRef)
 			if filepath.IsAbs(cleanRef) || strings.HasPrefix(cleanRef, "/") || strings.HasPrefix(cleanRef, "\\") {
 				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: code_refs '%s' must be a relative path", at, refTrimmed))
-			} else if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || strings.HasPrefix(cleanRef, "../") {
+			} else if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || strings.HasPrefix(cleanRef, "../") || strings.HasPrefix(cleanRef, "..\\") {
 				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: code_refs '%s' contains forbidden '..' traversal", at, refTrimmed))
 			}
 		}
