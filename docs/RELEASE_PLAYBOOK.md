@@ -71,11 +71,11 @@ Ensure no uncommitted files or untracked scratch files remain.
 
 ### Quick Release Summary
 ```bash
-# 1. Update changelog on develop and commit
+# 1. Author release notes and update changelog on develop and commit
 git checkout develop
 git pull origin develop
-git add knowledge/log.md
-git commit -m "docs(changelog): prepare release v0.2.0"
+git add docs/releases/v0.2.0.md knowledge/log.md
+git commit -m "chore(release): prepare release notes and changelog for v0.2.0"
 git push origin develop
 
 # 2. Merge develop into main
@@ -105,20 +105,27 @@ export RELEASE_VER="v0.2.0"
 export CLEAN_VER="0.2.0"
 ```
 
-#### Step 2: Update Documentation & Changelog
-1. Add a dated entry in [`knowledge/log.md`](../knowledge/log.md):
+#### Step 2: Prepare Release Notes & Update Changelog
+
+1. **Author Release Notes in `docs/releases/${RELEASE_VER}.md`**:
+   - Create `docs/releases/${RELEASE_VER}.md` containing the release highlights, detailed feature breakdown, security improvements, community acknowledgements, and upgrade instructions.
+   - **Automated CI Fail-Fast Gate**: The GitHub Actions release workflow (`.github/workflows/release.yml`) strictly requires this file. If a release tag is pushed without `docs/releases/${RELEASE_VER}.md`, CI immediately fails at the start. When present, CI automatically injects its full markdown content into the GitHub Release body—no manual copy-pasting required!
+
+2. **Add a dated entry in [`knowledge/log.md`](../knowledge/log.md)**:
    ```markdown
    ## YYYY-MM-DD
    * **Release**: Published version v0.2.0 with [Key Highlights].
    ```
-2. Validate knowledge bundle:
+
+3. **Validate knowledge bundle**:
    ```bash
    make validate
    ```
-3. Commit the changelog:
+
+4. **Commit release notes and changelog**:
    ```bash
-   git add knowledge/log.md
-   git commit -m "docs(changelog): prepare release ${RELEASE_VER}"
+   git add docs/releases/${RELEASE_VER}.md knowledge/log.md
+   git commit -m "chore(release): prepare release notes and changelog for ${RELEASE_VER}"
    ```
 
 #### Step 3: (Optional) Test Local Release Build
