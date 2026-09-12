@@ -185,7 +185,13 @@ The release workflow automatically updates `okf-memory/homebrew-tap` if `HOMEBRE
    ```
 *(Fallback if token is absent: Manually copy the generated `Formula/okf.rb` from the release assets into `okf-memory/homebrew-tap`).*
 
-### 3. Verify Direct Go Install
+### 3. Verify Documentation Website Sync
+The release workflow automatically updates `okf-memory/okf-memory.github.io` if `WEBSITE_UPDATE_TOKEN` is configured:
+1. Verify the automated commit in `https://github.com/okf-memory/okf-memory.github.io/commits/main`.
+2. Verify that `version.json`, install scripts, and OpenGraph assets reflect the new version.
+*(Fallback if token is absent: In `okf-memory.github.io`, run `./scripts/bump-version.sh ${RELEASE_VER} --push`).*
+
+### 4. Verify Direct Go Install
 Test direct global installation via Go toolchain:
 ```bash
 go install github.com/okf-memory/okf-agent-memory/cmd/okf@${RELEASE_VER}

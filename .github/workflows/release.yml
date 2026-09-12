@@ -168,7 +168,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: OKF Agent Memory ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
           draft: false
           prerelease: false
           files: |
@@ -180,7 +180,7 @@ jobs:
           body_path: ${{ steps.release_notes.outputs.BODY_PATH }}
 
       - name: Auto-update Homebrew Tap
-        if: env.HOMEBREW_TAP_TOKEN != ''
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
@@ -199,4 +199,19 @@ jobs:
             git push origin main
             echo "Successfully updated okf-memory/homebrew-tap!"
           fi
+
+      - name: Auto-update Documentation Website
+        if: ${{ secrets.WEBSITE_UPDATE_TOKEN != '' }}
+        env:
+          WEBSITE_UPDATE_TOKEN: ${{ secrets.WEBSITE_UPDATE_TOKEN }}
+        run: |
+          echo "Updating okf-memory/okf-memory.github.io documentation and install links..."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git clone https://x-access-token:${WEBSITE_UPDATE_TOKEN}@github.com/okf-memory/okf-memory.github.io.git website-repo
+          cd website-repo
+          chmod +x scripts/bump-version.sh
+          ./scripts/bump-version.sh "${{ steps.get_version.outputs.VERSION }}" --push
+          echo "Successfully updated okf-memory/okf-memory.github.io to ${{ steps.get_version.outputs.VERSION }}!"
 
