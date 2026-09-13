@@ -676,3 +676,37 @@ code_refs: ["pkg/**/*.go"]
 		t.Errorf("Expected governance 'constraint', got %q", results[0].Governance)
 	}
 }
+
+func TestMCPBundle_BackslashTraversalDenied(t *testing.T) {
+	tmpDir := t.TempDir()
+	serverRoot := filepath.Join(tmpDir, "server")
+	bundleDir := filepath.Join(serverRoot, "knowledge")
+	outsideDir := filepath.Join(tmpDir, "outside")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.MkdirAll(outsideDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Root\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	inputs := []string{
+		// Attempt bundle traversal via backslashes ..\..\outside
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"..\\..\\outside","query":"test"}}}`,
+		// Attempt create in bundle traversal via backslashes
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"..\\..\\outside","concept_id":"evil","type":"Fact","title":"Evil","description":"Should fail"}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != len(inputs) {
+		t.Fatalf("Expected %d responses, got %d", len(inputs), len(responses))
+	}
+
+	for i, r := range responses {
+		rMap, ok := r.Result.(map[string]any)
+		if !ok {
+			t.Fatalf("Response %d has unexpected result type: %T", i+1, r.Result)
+		}
+		isError, _ := rMap["isError"].(bool)
+		if !isError {
+			t.Errorf("Expected response %d to have isError: true, got: %+v", i+1, rMap)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package okf
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -132,15 +133,17 @@ func UpdateParentIndex(bundleDir string, c *Concept) error {
 		return fmt.Errorf("invalid bundle directory: %w", err)
 	}
 
-	dir := filepath.Dir(c.Path)
+	normConceptPath := strings.ReplaceAll(c.Path, "\\", "/")
+	dir := path.Dir(normConceptPath)
 	indexRelPath := "index.md"
 	if dir != "." {
-		indexRelPath = filepath.Join(dir, "index.md")
+		indexRelPath = filepath.Join(filepath.FromSlash(dir), "index.md")
 	}
 
 	indexPath := filepath.Join(absBundle, filepath.Clean(indexRelPath))
 	rel, err := filepath.Rel(absBundle, indexPath)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	relSlash := strings.ReplaceAll(rel, "\\", "/")
+	if err != nil || relSlash == ".." || strings.HasPrefix(relSlash, "../") {
 		return fmt.Errorf("path traversal denied: parent index %q escapes bundle directory", indexRelPath)
 	}
 	if _, err := ensureWithinRoot(bundleDir, indexPath); err != nil {
@@ -205,13 +208,15 @@ func resolveInBundle(bundleDir, relPath string) (string, error) {
 		return "", fmt.Errorf("failed to resolve bundle directory: %w", err)
 	}
 
-	cleanRel := filepath.Clean(relPath)
+	normRelPath := strings.ReplaceAll(relPath, "\\", "/")
+	cleanRel := filepath.Clean(filepath.FromSlash(normRelPath))
 	full := filepath.Join(absBundle, cleanRel)
 	rel, err := filepath.Rel(absBundle, full)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve concept path %q: %w", relPath, err)
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	relSlash := strings.ReplaceAll(rel, "\\", "/")
+	if relSlash == ".." || strings.HasPrefix(relSlash, "../") {
 		return "", fmt.Errorf("path traversal denied: concept path %q escapes bundle directory", relPath)
 	}
 	// Check reserved filenames on relative path (index.md anywhere, root log.md, root AGENTS.md)

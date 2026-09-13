@@ -52,7 +52,14 @@ func ensureWithinRoot(rootDir, targetPath string) (string, error) {
 		return "", fmt.Errorf("failed to get absolute path of bundle root: %w", err)
 	}
 
-	absTarget, err := filepath.Abs(targetPath)
+	cleanTarget := strings.ReplaceAll(targetPath, "\\", "/")
+	if filepath.IsAbs(targetPath) {
+		cleanTarget = filepath.Clean(cleanTarget)
+	} else {
+		cleanTarget = path.Join(filepath.ToSlash(realRoot), cleanTarget)
+	}
+
+	absTarget, err := filepath.Abs(filepath.FromSlash(cleanTarget))
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +93,8 @@ func ensureWithinRoot(rootDir, targetPath string) (string, error) {
 	realTarget := filepath.Join(parts...)
 
 	rel, err := filepath.Rel(realRoot, realTarget)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	relSlash := filepath.ToSlash(rel)
+	if err != nil || relSlash == ".." || strings.HasPrefix(relSlash, "../") {
 		return "", fmt.Errorf("path traversal denied: %q escapes bundle directory", targetPath)
 	}
 
