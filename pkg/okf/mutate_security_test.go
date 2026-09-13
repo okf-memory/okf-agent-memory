@@ -719,3 +719,39 @@ func TestSearchResourceLimits(t *testing.T) {
 		t.Errorf("Expected search with huge query string to return results, got nil")
 	}
 }
+
+// TestEnsureWithinRootWindowsBackslashTraversal verifies cross-platform path traversal containment
+// for Windows-style backslashes (..\..) on all operating systems.
+func TestEnsureWithinRootWindowsBackslashTraversal(t *testing.T) {
+	root := t.TempDir()
+	bundleDir := filepath.Join(root, "knowledge")
+	if err := InitBundle(bundleDir); err != nil {
+		t.Fatalf("InitBundle: %v", err)
+	}
+
+	backslashPaths := []string{
+		"..\\..\\evil.md",
+		"sub\\..\\..\\evil.md",
+		"a\\b\\..\\..\\..\\evil.md",
+	}
+
+	for _, p := range backslashPaths {
+		target := filepath.Join(bundleDir, p)
+		if _, err := ensureWithinRoot(bundleDir, target); err == nil {
+			t.Errorf("ensureWithinRoot(%q): expected path traversal error for backslash path, got nil", p)
+		}
+
+		c := &Concept{
+			ID:    "evil",
+			Path:  p,
+			Type:  "Fact",
+			Title: "Evil",
+		}
+		if err := SaveConcept(bundleDir, c, true, false, false, "test"); err == nil {
+			t.Errorf("SaveConcept(%q): expected path traversal error for backslash path, got nil", p)
+		}
+		if err := UpdateParentIndex(bundleDir, c); err == nil {
+			t.Errorf("UpdateParentIndex(%q): expected path traversal error for backslash path, got nil", p)
+		}
+	}
+}

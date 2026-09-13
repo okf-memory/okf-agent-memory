@@ -393,11 +393,12 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 			absRoot, _ = filepath.Abs(absRoot)
 		}
 
+		normTarget := strings.ReplaceAll(target, "\\", "/")
 		var absTarget string
-		if filepath.IsAbs(target) {
-			absTarget = target
+		if filepath.IsAbs(normTarget) {
+			absTarget = normTarget
 		} else {
-			absTarget = filepath.Join(s.rootDir, target)
+			absTarget = filepath.Join(s.rootDir, normTarget)
 		}
 
 		// Walk up to find the closest ancestor that exists and evaluate its symlinks
@@ -429,7 +430,8 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 		realTarget := filepath.Join(parts...)
 
 		rel, err := filepath.Rel(absRoot, realTarget)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		relSlash := filepath.ToSlash(rel)
+		if err != nil || relSlash == ".." || strings.HasPrefix(relSlash, "../") {
 			return "", fmt.Errorf("bundle directory %q escapes server root %q", target, s.rootDir)
 		}
 
