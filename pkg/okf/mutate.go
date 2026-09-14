@@ -11,6 +11,8 @@ import (
 	"unicode"
 )
 
+var newlineReplacer = strings.NewReplacer("\r", " ", "\n", " ")
+
 func titleCase(s string) string {
 	if s == "" {
 		return ""
@@ -354,7 +356,7 @@ func SaveConcept(bundleDir string, c *Concept, isNew, autoLog, autoIndex bool, a
 
 // RelateConcepts creates a relative markdown link between source and target concepts.
 func RelateConcepts(bundleDir, sourceID, targetID, relationDesc, actor string) error {
-	relationDesc = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(relationDesc, "\r", " "), "\n", " "))
+	relationDesc = strings.TrimSpace(newlineReplacer.Replace(relationDesc))
 
 	sourceID = strings.TrimSpace(strings.TrimSuffix(sourceID, ".md"))
 	targetID = strings.TrimSpace(strings.TrimSuffix(targetID, ".md"))
