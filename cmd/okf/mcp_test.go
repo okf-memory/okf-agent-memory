@@ -290,7 +290,7 @@ func TestMCPAdversarialSearchResourceLimits(t *testing.T) {
 		// 1. Search with massive limit parameter (e.g. 1,000,000)
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleDir + `","query":"test","limit":1000000}}}`,
 		// 2. Search with oversized query string
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleDir + `","query":"` + hugeQuery + `","limit":10}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bundleDir + `","query":"` + hugeQuery[:999] + `","limit":10}}}`,
 		// 3. Create concept with control character in concept_id
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + bundleDir + `","concept_id":"ctrl\u0000concept","type":"Fact","title":"Ctrl","description":"Desc"}}}`,
 	}
@@ -941,5 +941,55 @@ func TestMCPStructuredContentIntegrity(t *testing.T) {
 				t.Errorf("Unexpected validate structuredContent: %+v", sc)
 			}
 		}
+	}
+}
+
+func TestMCPUpdateWithInvalidArguments(t *testing.T) {
+	tmpDir := t.TempDir()
+	bundleDir := filepath.Join(tmpDir, "bundle")
+	_ = os.MkdirAll(bundleDir, 0o755)
+	_ = os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Bundle\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
+
+	// create initial concept
+	c := &okf.Concept{ID: "test/concept", Path: "test/concept.md", Type: "Fact", Title: "Original Title", Description: "Original Desc"}
+	_ = okf.SaveConcept(bundleDir, c, true, false, false, "test")
+
+	hugeTitle := strings.Repeat("t", 1001)
+
+	inputs := []string{
+		// 1. Exceeds max length (title > 1KB) should fail with error
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"test/concept","title":"` + hugeTitle + `"}}}`,
+		// 2. Clear description explicitly (title cannot be empty per SaveConcept)
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_update","arguments":{"bundle":"` + bundleDir + `","concept_id":"test/concept","description":""}}}`,
+	}
+
+	responses := runMCPConversation(t, bundleDir, inputs)
+	if len(responses) != 2 {
+		t.Fatalf("Expected 2 responses, got %d", len(responses))
+	}
+
+	// 1. Should fail with string length error
+	rMap1, _ := responses[0].Result.(map[string]any)
+	if isErr, _ := rMap1["isError"].(bool); !isErr {
+		t.Errorf("Expected response 1 to be an error, got: %+v", rMap1)
+	}
+	content1, _ := rMap1["content"].([]any)
+	cMap1, _ := content1[0].(map[string]any)
+	if text1, _ := cMap1["text"].(string); !strings.Contains(text1, "exceeds maximum length") {
+		t.Errorf("Expected length error, got: %s", text1)
+	}
+
+	// 2. Should succeed and clear fields
+	rMap2, _ := responses[1].Result.(map[string]any)
+	if isErr, _ := rMap2["isError"].(bool); isErr {
+		t.Errorf("Expected response 2 to succeed, got error: %+v", rMap2)
+	}
+
+	// Verify fields were cleared
+	b, _ := okf.LoadBundle(bundleDir)
+	updated, _ := b.Concepts["test/concept"]
+	if updated.Description != "" {
+		t.Errorf("Expected Description to be empty, got: %s", updated.Description)
 	}
 }
