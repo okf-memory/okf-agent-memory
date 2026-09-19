@@ -253,7 +253,7 @@ func resolveInBundle(bundleDir, relPath string) (string, error) {
 
 	// Normalize backslashes to forward slashes before calling filepath.Clean
 	// to prevent Windows-style backslash traversal vectors (e.g. "..\..\file") on POSIX OS.
-	normRel := filepath.ToSlash(relPath)
+	normRel := strings.ReplaceAll(relPath, "\\", "/")
 	cleanRel := filepath.Clean(normRel)
 	full := filepath.Join(absBundle, cleanRel)
 	rel, err := filepath.Rel(absBundle, full)
@@ -266,7 +266,7 @@ func resolveInBundle(bundleDir, relPath string) (string, error) {
 	}
 	// Check reserved filenames on relative path (index.md anywhere, root log.md, root AGENTS.md)
 	relBase := filepath.Base(cleanRel)
-	normRel = filepath.ToSlash(rel)
+	normRel = strings.ReplaceAll(rel, "\\", "/")
 	if rel == "." || cleanRel == "." ||
 		strings.EqualFold(relBase, "index") || strings.EqualFold(relBase, "index.md") ||
 		strings.EqualFold(normRel, "log.md") || strings.EqualFold(normRel, "AGENTS.md") {
