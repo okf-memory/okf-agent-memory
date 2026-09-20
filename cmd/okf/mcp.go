@@ -295,7 +295,8 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 		}
 
 		var absTarget string
-		if filepath.IsAbs(normTarget) {
+		isAbs := filepath.IsAbs(target) || strings.HasPrefix(normTarget, "/") || (len(normTarget) >= 2 && (normTarget[0] >= 'a' && normTarget[0] <= 'z' || normTarget[0] >= 'A' && normTarget[0] <= 'Z') && normTarget[1] == ':')
+		if isAbs {
 			absTarget = normTarget
 		} else {
 			absTarget = filepath.Join(s.rootDir, filepath.FromSlash(normTarget))

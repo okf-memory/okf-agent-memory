@@ -55,6 +55,29 @@ func TestSaveConceptRejectsTraversal(t *testing.T) {
 	}
 }
 
+// TestEnsureWithinRootCrossPlatformAbsolute checks that Windows-style absolute paths (e.g. C:\)
+// are correctly identified and rejected on POSIX systems instead of being treated as relative paths.
+func TestEnsureWithinRootCrossPlatformAbsolute(t *testing.T) {
+	root := t.TempDir()
+	bundleDir := filepath.Join(root, "knowledge")
+	if err := InitBundle(bundleDir); err != nil {
+		t.Fatalf("InitBundle: %v", err)
+	}
+
+	absolutePaths := []string{
+		`C:\Windows\System32\evil.md`,
+		`D:\secret.md`,
+		`/etc/passwd`,
+		`\Windows\System32`,
+	}
+
+	for _, p := range absolutePaths {
+		if _, err := ensureWithinRoot(bundleDir, p); err == nil {
+			t.Errorf("ensureWithinRoot(%q): expected path traversal error for cross-platform absolute path, got nil", p)
+		}
+	}
+}
+
 // TestSaveConceptAllowsNestedConcept verifies the containment check does not
 // reject legitimate nested concept paths, and that bookkeeping stays inside
 // the bundle.

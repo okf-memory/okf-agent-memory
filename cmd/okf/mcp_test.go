@@ -115,6 +115,35 @@ func TestMCPToolsListOutputSchemas(t *testing.T) {
 	}
 }
 
+func TestMCPBundle_CrossPlatformAbsoluteEscape(t *testing.T) {
+	tmpDir := t.TempDir()
+	serverRoot := filepath.Join(tmpDir, "workspace")
+	_ = os.MkdirAll(serverRoot, 0o755)
+
+	inputs := []string{
+		// Windows-style absolute paths (escaping workspace root)
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"C:\\Windows\\System32","query":"test"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"D:\\secret","query":"test"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"\\etc\\passwd","query":"test"}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"/etc/passwd","query":"test"}}}`,
+	}
+
+	responses := runMCPConversation(t, serverRoot, inputs)
+	if len(responses) != 4 {
+		t.Fatalf("Expected 4 responses, got %d", len(responses))
+	}
+
+	for i, r := range responses {
+		rMap, ok := r.Result.(map[string]any)
+		if !ok {
+			t.Fatalf("Response %d result type invalid: %T", i+1, r.Result)
+		}
+		if isErr, _ := rMap["isError"].(bool); !isErr {
+			t.Errorf("Expected response %d to return isError: true (path traversal denied), got: %+v", i+1, rMap)
+		}
+	}
+}
+
 func TestMCPOutputSchemasProperties(t *testing.T) {
 	byName := map[string]map[string]any{}
 	for _, tool := range getMCPTools() {
