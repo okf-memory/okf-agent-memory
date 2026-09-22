@@ -700,6 +700,10 @@ func TestMCPBundle_PathTraversalDenied(t *testing.T) {
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + jsonPath(outsideDir) + `","query":"test"}}}`,
 		// 3. Attempt create in bundle outside server root
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_create","arguments":{"bundle":"` + jsonPath(outsideDir) + `","concept_id":"evil","type":"Fact","title":"Evil","description":"Should fail"}}}`,
+		// 4. Attempt Windows absolute path traversal (should fail cross-platform)
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"C:\\Windows\\System32","query":"test"}}}`,
+		// 5. Attempt Windows absolute path with forward slashes
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"D:/etc/passwd","query":"test"}}}`,
 	}
 
 	responses := runMCPConversation(t, bundleDir, inputs)

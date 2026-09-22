@@ -210,7 +210,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			}
 			normRef := strings.ReplaceAll(refTrimmed, "\\", "/")
 			cleanRef := filepath.Clean(normRef)
-			if filepath.IsAbs(cleanRef) || strings.HasPrefix(cleanRef, "/") {
+			if IsAbsPath(cleanRef) || strings.HasPrefix(cleanRef, "/") {
 				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: code_refs '%s' must be a relative path", at, refTrimmed))
 			} else if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || strings.HasPrefix(cleanRef, "../") {
 				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: code_refs '%s' contains forbidden '..' traversal", at, refTrimmed))
@@ -293,7 +293,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 					continue
 				}
 				cleanRef := filepath.Clean(refTrimmed)
-				if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || filepath.IsAbs(cleanRef) {
+				if cleanRef == ".." || strings.HasPrefix(cleanRef, ".."+string(filepath.Separator)) || IsAbsPath(cleanRef) {
 					continue
 				}
 				pathInProj := filepath.Join(projectRoot, cleanRef)

@@ -40,6 +40,20 @@ type BrokenLink struct {
 	Reason        string `json:"reason"`
 }
 
+// IsAbsPath determines if a path is absolute in a cross-platform manner,
+// detecting POSIX slashes and Windows drive letters regardless of the runtime OS.
+func IsAbsPath(path string) bool {
+	norm := strings.ReplaceAll(path, "\\", "/")
+	if filepath.IsAbs(norm) || strings.HasPrefix(norm, "/") {
+		return true
+	}
+	// Check for Windows drive letter like C: or D:/
+	if len(norm) >= 2 && norm[1] == ':' && ((norm[0] >= 'a' && norm[0] <= 'z') || (norm[0] >= 'A' && norm[0] <= 'Z')) {
+		return true
+	}
+	return false
+}
+
 // ensureWithinRoot verifies that targetPath (resolving all symlinks) stays strictly
 // within the canonical root directory. It returns the resolved absolute path or an error.
 func ensureWithinRoot(rootDir, targetPath string) (string, error) {
@@ -53,7 +67,7 @@ func ensureWithinRoot(rootDir, targetPath string) (string, error) {
 	}
 
 	cleanTarget := strings.ReplaceAll(targetPath, "\\", "/")
-	if filepath.IsAbs(targetPath) {
+	if IsAbsPath(targetPath) {
 		cleanTarget = filepath.Clean(cleanTarget)
 	} else {
 		cleanTarget = path.Join(filepath.ToSlash(realRoot), cleanTarget)

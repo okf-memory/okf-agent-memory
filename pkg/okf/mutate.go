@@ -148,8 +148,7 @@ func ValidateConceptID(id string) error {
 		return fmt.Errorf("concept ID %q cannot start with a hyphen -", id)
 	}
 
-	if filepath.IsAbs(cleanID) || strings.HasPrefix(cleanID, "/") || strings.HasPrefix(cleanID, "\\") ||
-		(len(cleanID) >= 2 && cleanID[1] == ':' && ((cleanID[0] >= 'a' && cleanID[0] <= 'z') || (cleanID[0] >= 'A' && cleanID[0] <= 'Z'))) {
+	if IsAbsPath(cleanID) {
 		return fmt.Errorf("concept ID %q must be a relative path", id)
 	}
 
@@ -365,7 +364,7 @@ func sanitizeConceptMetadata(c *Concept) error {
 		for _, line := range lines {
 			trimmed := strings.TrimSpace(line)
 			if trimmed == "---" {
-				inDelimiter = true
+				inDelimiter = !inDelimiter
 				continue
 			}
 			if inDelimiter {
@@ -378,7 +377,6 @@ func sanitizeConceptMetadata(c *Concept) error {
 						return fmt.Errorf("concept body cannot smuggle frontmatter block containing %q", key)
 					}
 				}
-				inDelimiter = false
 			}
 		}
 	}
