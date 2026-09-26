@@ -368,6 +368,36 @@ func getStringArg(args map[string]any, key string, maxLen int, required bool) (s
 	return strVal, nil
 }
 
+func getTagsArg(args map[string]any) ([]string, error) {
+	value, ok := args["tags"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("argument 'tags' must be an array of strings")
+	}
+	if len(value) > 100 {
+		return nil, fmt.Errorf("argument 'tags' exceeds maximum of 100 items")
+	}
+	tags := make([]string, 0, len(value))
+	for _, item := range value {
+		tag, ok := item.(string)
+		if !ok || len(tag) > 1000 || strings.TrimSpace(tag) == "" {
+			return nil, fmt.Errorf("each tag must be a non-empty string of at most 1000 bytes")
+		}
+		tags = append(tags, strings.TrimSpace(tag))
+	}
+	return tags, nil
+}
+
+func getMutationStatus(args map[string]any) (string, error) {
+	status, err := getStringArg(args, "status", 1000, true)
+	if err != nil {
+		return "", err
+	}
+	if !IsValidConceptStatus(status) {
+		return "", fmt.Errorf("argument 'status' must be draft, stable, or deprecated")
+	}
+	return status, nil
+}
+
 func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 	var callParams mcpToolCallParams
 	if err := json.Unmarshal(req.Params, &callParams); err != nil {
@@ -550,6 +580,22 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 			return
 		}
+		status := "stable"
+		if _, exists := callParams.Arguments["status"]; exists {
+			status, err = getMutationStatus(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+		}
+		var tags []string
+		if _, exists := callParams.Arguments["tags"]; exists {
+			tags, err = getTagsArg(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+		}
 
 		cleanID := strings.TrimSuffix(conceptID, ".md")
 		c := &Concept{
@@ -559,6 +605,8 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			Title:       strings.TrimSpace(title),
 			Description: desc,
 			Body:        body,
+			Status:      status,
+			Tags:        tags,
 		}
 
 		if err := SaveConcept(bundleDir, c, SaveOptions{
@@ -601,6 +649,34 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 
 		// Work on a copy to prevent in-memory concept corruption if validation or disk write fails
 		updated := *c
+		if _, exists := callParams.Arguments["type"]; exists {
+			conceptType, err := getStringArg(callParams.Arguments, "type", 1000, true)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			if strings.TrimSpace(conceptType) == "" {
+				s.sendToolResult(req.ID, "Invalid type: concept type cannot be empty or whitespace", nil, true)
+				return
+			}
+			updated.Type = strings.TrimSpace(conceptType)
+		}
+		if _, exists := callParams.Arguments["status"]; exists {
+			status, err := getMutationStatus(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			updated.Status = status
+		}
+		if _, exists := callParams.Arguments["tags"]; exists {
+			tags, err := getTagsArg(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			updated.Tags = tags
+		}
 
 		if _, exists := callParams.Arguments["title"]; exists {
 			title, err := getStringArg(callParams.Arguments, "title", 1000, true)

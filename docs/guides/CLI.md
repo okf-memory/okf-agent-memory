@@ -137,6 +137,7 @@ okf create <concept-id> [bundle-path] \
   --title "<Title>" \
   --desc "<One-sentence description>" \
   [--body "<Markdown body>"] \
+  [--status draft|stable|deprecated] \
   [--tags "tag1,tag2"] \
   [--actor "agent/<model>"] \
   [--no-log] \
@@ -149,6 +150,7 @@ okf create <concept-id> [bundle-path] \
   * `--title`: Human-readable concept title.
   * `--desc`: Exactly one concise sentence describing the concept.
   * `--body`: Markdown content following frontmatter.
+  * `--status`: Lifecycle status (`draft`, `stable`, or `deprecated`; default `stable`).
   * `--tags`: Comma-separated list of tags.
   * `--actor`: Author string (default: `agent/cli`).
   * `--no-log`: Skips appending an entry to `log.md`.
@@ -165,11 +167,16 @@ okf update <concept-id> [bundle-path] \
   [--title "<New Title>"] \
   [--desc "<Updated description>"] \
   [--body "<Updated body>"] \
+  [--type <Type>] \
+  [--status draft|stable|deprecated] \
+  [--tags "tag1,tag2"] \
   [--actor "agent/<model>"] \
   [--no-log] \
   [--no-index] \
   [--json]
 ```
+
+Only supplied flags change the existing concept. `--type` requires a non-empty value, `--status` accepts only `draft`, `stable`, or `deprecated`, and `--tags` replaces the current tags after trimming each comma-separated value. Pass `--tags ""` to clear all tags; omit it to retain them.
 
 ---
 
@@ -236,10 +243,12 @@ okf mcp [bundle-path]
 | :--- | :--- | :--- |
 | `okf_search` | `query` (string, opt), `for_path` (string, opt), `limit` (int) | Query memory corpus via BM25 ranking, or find concepts governing a file via `code_refs`. |
 | `okf_show` | `concept_id` (string) | Fetch concept frontmatter, body, and graph links. |
-| `okf_create` | `id`, `type`, `title`, `description`, `body`, `tags` | Create concept with automatic index & log bookkeeping. |
-| `okf_update` | `id`, `title`, `description`, `body` | Update existing concept and record in log.md. |
+| `okf_create` | `concept_id`, `type`, `title`, `description`, `body`, `status`, `tags` | Create concept with automatic index & log bookkeeping; status defaults to `stable`. |
+| `okf_update` | `concept_id`, `type`, `status`, `tags`, `title`, `description`, `body` | Update only supplied fields and record in log.md; empty `tags` array clears tags. |
 | `okf_relate` | `source_id`, `target_id`, `description` | Link two concepts together. |
 | `okf_validate` | `strict` (bool), `drift` (bool) | Verify bundle conformance. |
+
+MCP `tags` is an array of strings, such as `["auth", "security"]`. Both MCP tools accept lifecycle statuses `draft`, `stable`, and `deprecated`; updating with no `status` retains the existing value.
 
 ---
 
@@ -298,4 +307,3 @@ Runs the embedded blind CAS and atomic head pointer server locally on the specif
 ```bash
 okf hub serve [-port 8080] [-storage <dir>]
 ```
-

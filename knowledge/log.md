@@ -1,3 +1,7 @@
+## 2026-09-26
+* **Update**: Linked `requirements/mutation-metadata.md` to `architecture/tooling-decision.md` (Specifies lifecycle and tag mutation behavior for the Go CLI and MCP surfaces.).
+* **Creation**: Documented concept `requirements/mutation-metadata.md` (Metadata Mutation Parity for CLI and MCP).
+
 ## 2026-09-25
 * **Refactoring**: Decoupled CLI subcommand implementations and command registry into `internal/cli` to keep `cmd/okf` lean and encapsulate command parsing.
 * **Update**: Synchronized `code_refs` in `architecture/governance-model.md` and `architecture/zero-knowledge-vault-sync.md`.

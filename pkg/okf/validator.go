@@ -20,6 +20,11 @@ var (
 	}
 )
 
+// IsValidConceptStatus reports whether status is an OKF v0.2 lifecycle value.
+func IsValidConceptStatus(status string) bool {
+	return validStatuses[status]
+}
+
 // ValidationResult contains all validation diagnostics.
 type ValidationResult struct {
 	BundlePath   string       `json:"bundle_path"`
@@ -219,7 +224,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 		}
 
 		// Lifecycle validation
-		if c.Status != "" && !validStatuses[c.Status] {
+		if c.Status != "" && !IsValidConceptStatus(c.Status) {
 			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: status '%s' is not draft|stable|deprecated", at, c.Status))
 		}
 		if c.StaleAfter != "" {
