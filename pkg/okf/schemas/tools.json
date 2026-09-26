@@ -316,6 +316,18 @@
           "type": "string",
           "description": "Markdown body content."
         },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "stable", "deprecated"],
+          "default": "stable",
+          "description": "Optional concept lifecycle status; defaults to stable."
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "description": "Optional array of searchable tags."
+        },
         "bundle": {
           "type": "string",
           "description": "Optional path to the OKF knowledge bundle directory (defaults to 'knowledge' or project bundle)."
@@ -358,13 +370,29 @@
   },
   {
     "name": "okf_update",
-    "description": "Update an existing concept's title, description, or body with automatic log.md bookkeeping.",
+    "description": "Update an existing concept's type, status, tags, title, description, or body with automatic log.md bookkeeping. Omitted fields are preserved; an empty tags array clears tags.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "concept_id": {
           "type": "string",
           "description": "Path without .md (e.g. 'decisions/auth-flow')."
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Updated non-empty concept type."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "stable", "deprecated"],
+          "description": "Updated concept lifecycle status."
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {"type": "string", "minLength": 1, "maxLength": 1000},
+          "description": "Replacement tags; an empty array clears existing tags."
         },
         "title": {
           "type": "string",
