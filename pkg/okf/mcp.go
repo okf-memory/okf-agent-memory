@@ -1,4 +1,4 @@
-package main
+package okf
 
 import (
 	"bufio"
@@ -10,9 +10,17 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/okf-memory/okf-agent-memory/pkg/okf"
+	"time"
 )
+
+var MCPVersion = "0.2.0"
+
+// SetMCPVersion sets the version string advertised in the MCP initialize handshake.
+func SetMCPVersion(v string) {
+	if v != "" {
+		MCPVersion = v
+	}
+}
 
 type jsonRPCRequest struct {
 	JSONRPC string           `json:"jsonrpc"`
@@ -195,7 +203,7 @@ func (s *mcpServer) handleRequest(req jsonRPCRequest) {
 			"protocolVersion": "2024-11-05",
 			"serverInfo": map[string]string{
 				"name":    "okf-agent-memory",
-				"version": Version,
+				"version": MCPVersion,
 			},
 			"capabilities": map[string]any{
 				"tools": map[string]bool{
@@ -233,7 +241,7 @@ func (s *mcpServer) handleRequest(req jsonRPCRequest) {
 
 	case "tools/list":
 		s.sendResponse(req.ID, map[string]any{
-			"tools": getMCPTools(),
+			"tools": GetMCPTools(),
 		})
 
 	case "tools/call":
@@ -259,7 +267,8 @@ func init() {
 	}
 }
 
-func getMCPTools() []map[string]any {
+// GetMCPTools returns the cached tool definitions with input and output schemas.
+func GetMCPTools() []map[string]any {
 	return cachedMCPTools
 }
 
@@ -295,7 +304,7 @@ func (s *mcpServer) resolveBundleDir(callParams mcpToolCallParams) (string, erro
 		}
 
 		var absTarget string
-		if okf.IsAbsPath(normTarget) {
+		if IsAbsPath(normTarget) {
 			absTarget = normTarget
 		} else {
 			absTarget = filepath.Join(s.rootDir, filepath.FromSlash(normTarget))
@@ -359,6 +368,36 @@ func getStringArg(args map[string]any, key string, maxLen int, required bool) (s
 	return strVal, nil
 }
 
+func getTagsArg(args map[string]any) ([]string, error) {
+	value, ok := args["tags"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("argument 'tags' must be an array of strings")
+	}
+	if len(value) > 100 {
+		return nil, fmt.Errorf("argument 'tags' exceeds maximum of 100 items")
+	}
+	tags := make([]string, 0, len(value))
+	for _, item := range value {
+		tag, ok := item.(string)
+		if !ok || len(tag) > 50 || strings.TrimSpace(tag) == "" {
+			return nil, fmt.Errorf("each tag must be a non-empty string of at most 50 bytes")
+		}
+		tags = append(tags, strings.TrimSpace(tag))
+	}
+	return tags, nil
+}
+
+func getMutationStatus(args map[string]any) (string, error) {
+	status, err := getStringArg(args, "status", 1000, true)
+	if err != nil {
+		return "", err
+	}
+	if !IsValidConceptStatus(status) {
+		return "", fmt.Errorf("argument 'status' must be draft, stable, or deprecated")
+	}
+	return status, nil
+}
+
 func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 	var callParams mcpToolCallParams
 	if err := json.Unmarshal(req.Params, &callParams); err != nil {
@@ -376,7 +415,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 		return
 	}
 
-	b, err := okf.LoadBundle(bundleDir)
+	b, err := LoadBundle(bundleDir)
 	if err != nil {
 		s.sendToolResult(req.ID, fmt.Sprintf("Failed to load bundle from %q: %v", bundleDir, err), nil, true)
 		return
@@ -394,6 +433,25 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 			return
 		}
+		filter, err := getStringArg(callParams.Arguments, "filter", 1000, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
+		staleWithinStr, err := getStringArg(callParams.Arguments, "stale_within", 100, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
+		var staleWithin time.Duration
+		if staleWithinStr != "" {
+			d, err := ParseRelativeDuration(staleWithinStr)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid stale_within duration: %v", err), nil, true)
+				return
+			}
+			staleWithin = d
+		}
 		limit := 10
 		if l, ok := callParams.Arguments["limit"].(float64); ok {
 			if l > 0 && l <= 100 {
@@ -402,14 +460,19 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 				limit = 100
 			}
 		}
-		var results []okf.SearchResult
-		if forPath != "" {
-			results = b.SearchForPath(forPath, query, limit)
-		} else {
-			results = b.Search(query, limit)
+		results, err := b.SearchAdvanced(SearchOptions{
+			Query:       query,
+			TargetPath:  forPath,
+			Limit:       limit,
+			Filter:      filter,
+			StaleWithin: staleWithin,
+		})
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Search error: %v", err), nil, true)
+			return
 		}
 		if results == nil {
-			results = []okf.SearchResult{}
+			results = []SearchResult{}
 		}
 		resJSON, _ := json.Marshal(results)
 		envelope := map[string]any{"results": results}
@@ -422,7 +485,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			return
 		}
 		conceptID = strings.TrimSpace(conceptID)
-		if err := okf.ValidateConceptID(conceptID); err != nil {
+		if err := ValidateConceptID(conceptID); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid concept_id: %v", err), nil, true)
 			return
 		}
@@ -444,7 +507,21 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 		if stVal, ok := callParams.Arguments["stale"].(bool); ok {
 			stale = stVal
 		}
-		res := okf.Validate(b, okf.ValidateOptions{Strict: strict, Drift: true, Stale: stale})
+		staleWithinStr, err := getStringArg(callParams.Arguments, "stale_within", 100, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
+		var staleWithin time.Duration
+		if staleWithinStr != "" {
+			d, err := ParseRelativeDuration(staleWithinStr)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid stale_within duration: %v", err), nil, true)
+				return
+			}
+			staleWithin = d
+		}
+		res := Validate(b, ValidateOptions{Strict: strict, Drift: true, Stale: stale, StaleWithin: staleWithin})
 		if res.Errors == nil {
 			res.Errors = []string{}
 		}
@@ -455,7 +532,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			res.GateFindings = []string{}
 		}
 		if res.BrokenLinks == nil {
-			res.BrokenLinks = []okf.BrokenLink{}
+			res.BrokenLinks = []BrokenLink{}
 		}
 		if res.Orphans == nil {
 			res.Orphans = []string{}
@@ -470,7 +547,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			return
 		}
 		conceptID = strings.TrimSpace(conceptID)
-		if err := okf.ValidateConceptID(conceptID); err != nil {
+		if err := ValidateConceptID(conceptID); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid concept_id: %v", err), nil, true)
 			return
 		}
@@ -503,18 +580,41 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 			return
 		}
+		status := "stable"
+		if _, exists := callParams.Arguments["status"]; exists {
+			status, err = getMutationStatus(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+		}
+		var tags []string
+		if _, exists := callParams.Arguments["tags"]; exists {
+			tags, err = getTagsArg(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+		}
 
 		cleanID := strings.TrimSuffix(conceptID, ".md")
-		c := &okf.Concept{
+		c := &Concept{
 			ID:          cleanID,
 			Path:        cleanID + ".md",
 			Type:        conceptType,
 			Title:       strings.TrimSpace(title),
 			Description: desc,
 			Body:        body,
+			Status:      status,
+			Tags:        tags,
 		}
 
-		if err := okf.SaveConcept(bundleDir, c, true, true, true, "agent/mcp"); err != nil {
+		if err := SaveConcept(bundleDir, c, SaveOptions{
+			IsNew:     true,
+			AutoLog:   true,
+			AutoIndex: true,
+			Actor:     "agent/mcp",
+		}); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Failed to save concept: %v", err), nil, true)
 			return
 		}
@@ -536,7 +636,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			return
 		}
 		conceptID = strings.TrimSpace(conceptID)
-		if err := okf.ValidateConceptID(conceptID); err != nil {
+		if err := ValidateConceptID(conceptID); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid concept_id: %v", err), nil, true)
 			return
 		}
@@ -549,6 +649,34 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 
 		// Work on a copy to prevent in-memory concept corruption if validation or disk write fails
 		updated := *c
+		if _, exists := callParams.Arguments["type"]; exists {
+			conceptType, err := getStringArg(callParams.Arguments, "type", 1000, true)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			if strings.TrimSpace(conceptType) == "" {
+				s.sendToolResult(req.ID, "Invalid type: concept type cannot be empty or whitespace", nil, true)
+				return
+			}
+			updated.Type = strings.TrimSpace(conceptType)
+		}
+		if _, exists := callParams.Arguments["status"]; exists {
+			status, err := getMutationStatus(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			updated.Status = status
+		}
+		if _, exists := callParams.Arguments["tags"]; exists {
+			tags, err := getTagsArg(callParams.Arguments)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			updated.Tags = tags
+		}
 
 		if _, exists := callParams.Arguments["title"]; exists {
 			title, err := getStringArg(callParams.Arguments, "title", 1000, true)
@@ -579,7 +707,12 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			updated.Body = body
 		}
 
-		if err := okf.SaveConcept(bundleDir, &updated, false, true, true, "agent/mcp"); err != nil {
+		if err := SaveConcept(bundleDir, &updated, SaveOptions{
+			IsNew:     false,
+			AutoLog:   true,
+			AutoIndex: true,
+			Actor:     "agent/mcp",
+		}); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Failed to update concept: %v", err), nil, true)
 			return
 		}
@@ -613,7 +746,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			return
 		}
 
-		if err := okf.RelateConcepts(bundleDir, srcID, tgtID, desc, "agent/mcp"); err != nil {
+		if err := RelateConcepts(bundleDir, srcID, tgtID, desc, "agent/mcp"); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Failed to relate concepts: %v", err), nil, true)
 			return
 		}

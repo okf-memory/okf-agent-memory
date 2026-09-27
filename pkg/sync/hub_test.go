@@ -1,4 +1,4 @@
-package main
+package sync
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/okf-memory/okf-agent-memory/pkg/sync"
 	"github.com/okf-memory/okf-agent-memory/pkg/vault"
 )
 
@@ -24,23 +23,23 @@ func (l *localRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	return rec.Result(), nil
 }
 
-func newTestHubServer() *sync.Server {
-	return sync.NewServer("")
+func newTestHubServerForHub() *Server {
+	return NewServer("")
 }
 
-func newTestClientFromHandler(handler http.Handler, token string) *sync.Client {
-	c := sync.NewClient("http://hub.local", token)
+func newTestClientFromHandlerForHub(handler http.Handler, token string) *Client {
+	c := NewClient("http://hub.local", token)
 	c.HTTPClient.Transport = &localRoundTripper{handler: handler}
 	return c
 }
 
-func TestCmdHub_InitVault(t *testing.T) {
+func TestHub_InitVault(t *testing.T) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 
-	err := runHubInitVault(&buf, dir, "http://127.0.0.1:8080", "")
+	err := InitVault(&buf, dir, "http://127.0.0.1:8080", "")
 	if err != nil {
-		t.Fatalf("runHubInitVault error: %v", err)
+		t.Fatalf("InitVault error: %v", err)
 	}
 
 	out := buf.String()
@@ -54,25 +53,22 @@ func TestCmdHub_InitVault(t *testing.T) {
 		t.Fatalf("output missing Secret Key:\n%s", out)
 	}
 
-	// Verify local config file was created
 	cfgPath := filepath.Join(dir, ".okf-vault.json")
 	if _, err := os.Stat(cfgPath); err != nil {
 		t.Fatalf("expected config file %s to exist", cfgPath)
 	}
 }
 
-func TestCmdHub_PushPullSyncWithServer(t *testing.T) {
-	// Initialize a vault in dirA
+func TestHub_PushPullSyncWithServer(t *testing.T) {
 	dirA := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dirA, "index.md"), []byte("# Knowledge Index\nokf_version: 0.2\n"), 0o644)
 
 	var initBuf bytes.Buffer
-	if err := runHubInitVault(&initBuf, dirA, "http://127.0.0.1:8080", ""); err != nil {
+	if err := InitVault(&initBuf, dirA, "http://127.0.0.1:8080", ""); err != nil {
 		t.Fatalf("init error: %v", err)
 	}
 
-	// Read generated config
-	cfgA, err := loadVaultConfig(dirA)
+	cfgA, err := LoadVaultConfig(dirA)
 	if err != nil {
 		t.Fatalf("load config error: %v", err)
 	}
@@ -83,27 +79,38 @@ func TestCmdHub_PushPullSyncWithServer(t *testing.T) {
 	}
 	password := "master-pass-123"
 
-	// Create test in-memory server handler
-	server := newTestHubServer()
-	clientA := newTestClientFromHandler(server.Handler(), "token-a")
+	server := newTestHubServerForHub()
+	clientA := newTestClientFromHandlerForHub(server.Handler(), "token-a")
 
-	// 1. Push from A
 	var pushBuf bytes.Buffer
-	err = executeHubPush(&pushBuf, dirA, clientA, cfgA.VaultID, password, secretKey, "Initial push")
+	err = HubPush(&pushBuf, HubOp{
+		Dir:          dirA,
+		Client:       clientA,
+		VaultID:      cfgA.VaultID,
+		Password:     password,
+		SecretKey:    secretKey,
+		Message:      "Initial push",
+		AgentVersion: "test",
+	})
 	if err != nil {
-		t.Fatalf("executeHubPush error: %v", err)
+		t.Fatalf("HubPush error: %v", err)
 	}
 	if !strings.Contains(pushBuf.String(), "Push completed") {
 		t.Fatalf("expected push completion message, got:\n%s", pushBuf.String())
 	}
 
-	// 2. Pull into dirB
 	dirB := t.TempDir()
-	clientB := newTestClientFromHandler(server.Handler(), "token-b")
+	clientB := newTestClientFromHandlerForHub(server.Handler(), "token-b")
 	var pullBuf bytes.Buffer
-	err = executeHubPull(&pullBuf, dirB, clientB, cfgA.VaultID, password, secretKey)
+	err = HubPull(&pullBuf, HubOp{
+		Dir:       dirB,
+		Client:    clientB,
+		VaultID:   cfgA.VaultID,
+		Password:  password,
+		SecretKey: secretKey,
+	})
 	if err != nil {
-		t.Fatalf("executeHubPull error: %v", err)
+		t.Fatalf("HubPull error: %v", err)
 	}
 
 	pulledIndex, err := os.ReadFile(filepath.Join(dirB, "index.md"))
@@ -115,99 +122,103 @@ func TestCmdHub_PushPullSyncWithServer(t *testing.T) {
 	}
 }
 
-func TestResolveToken(t *testing.T) {
-	cfg := &VaultConfigFile{
+func TestHub_ResolveToken(t *testing.T) {
+	cfg := &VaultConfig{
 		VaultID:   "v_test",
 		HubURL:    "http://127.0.0.1:8080",
 		AuthToken: "cfg-token",
 	}
 
-	// 1. Flag priority
 	t.Setenv("OKF_HUB_TOKEN", "env-token")
 
-	if tok := resolveToken("flag-token", cfg); tok != "flag-token" {
+	if tok := ResolveToken("flag-token", cfg); tok != "flag-token" {
 		t.Fatalf("expected flag-token, got %s", tok)
 	}
 
-	// 2. Env priority over config
-	if tok := resolveToken("", cfg); tok != "env-token" {
+	if tok := ResolveToken("", cfg); tok != "env-token" {
 		t.Fatalf("expected env-token, got %s", tok)
 	}
 
-	// 3. Config fallback
 	t.Setenv("OKF_HUB_TOKEN", "")
-	if tok := resolveToken("", cfg); tok != "cfg-token" {
+	if tok := ResolveToken("", cfg); tok != "cfg-token" {
 		t.Fatalf("expected cfg-token, got %s", tok)
 	}
 
-	// 4. Empty
-	if tok := resolveToken("", nil); tok != "" {
+	if tok := ResolveToken("", nil); tok != "" {
 		t.Fatalf("expected empty string, got %s", tok)
 	}
 }
 
-func TestCmdHub_BearerAuthProtection(t *testing.T) {
+func TestHub_BearerAuthProtection(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "index.md"), []byte("# Index\n"), 0o644)
 	var initBuf bytes.Buffer
-	if err := runHubInitVault(&initBuf, dir, "http://127.0.0.1:8080", "secret-token"); err != nil {
+	if err := InitVault(&initBuf, dir, "http://127.0.0.1:8080", "secret-token"); err != nil {
 		t.Fatalf("init error: %v", err)
 	}
-	cfg, _ := loadVaultConfig(dir)
+	cfg, _ := LoadVaultConfig(dir)
 	secretKey, _ := vault.GenerateSecretKey()
 
-	// Handler that requires Bearer secret-token
 	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if auth != "Bearer secret-token" {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
-		// Forward to memory server
-		newTestHubServer().Handler().ServeHTTP(w, r)
+		newTestHubServerForHub().Handler().ServeHTTP(w, r)
 	})
 
-	// Client with valid token
-	clientValid := newTestClientFromHandler(authHandler, "secret-token")
+	clientValid := newTestClientFromHandlerForHub(authHandler, "secret-token")
 	var pushBuf bytes.Buffer
-	err := executeHubPush(&pushBuf, dir, clientValid, cfg.VaultID, "pass", secretKey, "msg")
+	err := HubPush(&pushBuf, HubOp{
+		Dir:          dir,
+		Client:       clientValid,
+		VaultID:      cfg.VaultID,
+		Password:     "pass",
+		SecretKey:    secretKey,
+		Message:      "msg",
+		AgentVersion: "test",
+	})
 	if err != nil {
 		t.Fatalf("expected push to succeed with valid token, got: %v", err)
 	}
 
-	// Client with wrong token
-	clientInvalid := newTestClientFromHandler(authHandler, "wrong-token")
-	err = executeHubPush(&pushBuf, dir, clientInvalid, cfg.VaultID, "pass", secretKey, "msg")
+	clientInvalid := newTestClientFromHandlerForHub(authHandler, "wrong-token")
+	err = HubPush(&pushBuf, HubOp{
+		Dir:          dir,
+		Client:       clientInvalid,
+		VaultID:      cfg.VaultID,
+		Password:     "pass",
+		SecretKey:    secretKey,
+		Message:      "msg",
+		AgentVersion: "test",
+	})
 	if err == nil || !strings.Contains(err.Error(), "unauthorized") {
 		t.Fatalf("expected unauthorized error with wrong token, got: %v", err)
 	}
 }
 
-func TestResolveHubURL(t *testing.T) {
-	cfg := &VaultConfigFile{
+func TestHub_ResolveHubURL(t *testing.T) {
+	cfg := &VaultConfig{
 		VaultID: "v_test",
 		HubURL:  "https://hub.example.com",
 	}
 
-	// Flag priority
-	if u := resolveHubURL("http://override.local", cfg); u != "http://override.local" {
+	if u := ResolveHubURL("http://override.local", cfg); u != "http://override.local" {
 		t.Fatalf("expected override URL, got %s", u)
 	}
 
-	// Config fallback
-	if u := resolveHubURL("", cfg); u != "https://hub.example.com" {
+	if u := ResolveHubURL("", cfg); u != "https://hub.example.com" {
 		t.Fatalf("expected config URL, got %s", u)
 	}
 
-	// Default fallback
-	if u := resolveHubURL("", nil); u != "http://127.0.0.1:8080" {
+	if u := ResolveHubURL("", nil); u != "http://127.0.0.1:8080" {
 		t.Fatalf("expected default URL, got %s", u)
 	}
 }
 
-func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
-	// 1. Start real embedded HTTP server on dynamic local port (as in "okf hub serve")
-	srv := sync.NewServer("")
+func TestHub_Serve_E2E_Socket(t *testing.T) {
+	srv := NewServer("")
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -217,7 +228,6 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("GenerateSecretKey error: %v", err)
 	}
 
-	// 2. Initialize Bundle A on real HTTP server URL
 	dirA := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dirA, "index.md"), []byte("# Root Index\nokf_version: 0.2\n"), 0o644)
 	subDirA := filepath.Join(dirA, "concepts")
@@ -225,11 +235,11 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(subDirA, "architecture.md"), []byte("# Architecture\nSocket E2E test\n"), 0o644)
 
 	var initBuf bytes.Buffer
-	if err := runHubInitVault(&initBuf, dirA, ts.URL, "secret-token-e2e"); err != nil {
+	if err := InitVault(&initBuf, dirA, ts.URL, "secret-token-e2e"); err != nil {
 		t.Fatalf("init-vault error: %v", err)
 	}
 
-	cfgA, err := loadVaultConfig(dirA)
+	cfgA, err := LoadVaultConfig(dirA)
 	if err != nil {
 		t.Fatalf("load config error: %v", err)
 	}
@@ -237,10 +247,17 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("expected config hub_url %s, got %s", ts.URL, cfgA.HubURL)
 	}
 
-	// 3. Client A: Real HTTP Push
-	clientA := sync.NewClient(ts.URL, "secret-token-e2e")
+	clientA := NewClient(ts.URL, "secret-token-e2e")
 	var pushBuf bytes.Buffer
-	err = executeHubPush(&pushBuf, dirA, clientA, cfgA.VaultID, password, secretKey, "Initial socket push")
+	err = HubPush(&pushBuf, HubOp{
+		Dir:          dirA,
+		Client:       clientA,
+		VaultID:      cfgA.VaultID,
+		Password:     password,
+		SecretKey:    secretKey,
+		Message:      "Initial socket push",
+		AgentVersion: "test",
+	})
 	if err != nil {
 		t.Fatalf("real socket push failed: %v", err)
 	}
@@ -248,7 +265,6 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("expected push completed, got:\n%s", pushBuf.String())
 	}
 
-	// 4. Verify remote head over real HTTP
 	headResp, err := clientA.GetHead(context.Background(), cfgA.VaultID)
 	if err != nil {
 		t.Fatalf("GetHead over socket failed: %v", err)
@@ -257,16 +273,20 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("expected non-empty head commit on remote server")
 	}
 
-	// 5. Client B: Clone / Pull into separate Bundle B over real HTTP
 	dirB := t.TempDir()
-	clientB := sync.NewClient(ts.URL, "secret-token-e2e")
+	clientB := NewClient(ts.URL, "secret-token-e2e")
 	var pullBuf bytes.Buffer
-	err = executeHubPull(&pullBuf, dirB, clientB, cfgA.VaultID, password, secretKey)
+	err = HubPull(&pullBuf, HubOp{
+		Dir:       dirB,
+		Client:    clientB,
+		VaultID:   cfgA.VaultID,
+		Password:  password,
+		SecretKey: secretKey,
+	})
 	if err != nil {
 		t.Fatalf("real socket pull failed: %v", err)
 	}
 
-	// 6. Verify bit-exact file matching over socket
 	pulledIndex, err := os.ReadFile(filepath.Join(dirB, "index.md"))
 	if err != nil {
 		t.Fatalf("failed to read pulled index.md: %v", err)
@@ -283,11 +303,18 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("mismatch in pulled architecture.md: %s", string(pulledArch))
 	}
 
-	// 7. Verify Concurrent Reconcile Sync over real HTTP socket (disjoint addition)
 	noteBPath := filepath.Join(dirB, "concepts", "note_b.md")
 	_ = os.WriteFile(noteBPath, []byte("# Note B\nCreated on Device B\n"), 0o644)
 	var syncBuf bytes.Buffer
-	err = executeHubSync(&syncBuf, dirB, clientB, cfgA.VaultID, password, secretKey, "Sync note B from device B")
+	err = HubSync(&syncBuf, HubOp{
+		Dir:          dirB,
+		Client:       clientB,
+		VaultID:      cfgA.VaultID,
+		Password:     password,
+		SecretKey:    secretKey,
+		Message:      "Sync note B from device B",
+		AgentVersion: "test",
+	})
 	if err != nil {
 		t.Fatalf("real socket sync failed: %v", err)
 	}
@@ -298,9 +325,14 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("expected no collision for disjoint add, got:\n%s", syncBuf.String())
 	}
 
-	// Device A pulls the merged state
 	var pullBuf2 bytes.Buffer
-	err = executeHubPull(&pullBuf2, dirA, clientA, cfgA.VaultID, password, secretKey)
+	err = HubPull(&pullBuf2, HubOp{
+		Dir:       dirA,
+		Client:    clientA,
+		VaultID:   cfgA.VaultID,
+		Password:  password,
+		SecretKey: secretKey,
+	})
 	if err != nil {
 		t.Fatalf("device A pull failed: %v", err)
 	}
@@ -313,11 +345,17 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("content mismatch for note_b.md on device A: %s", string(pulledNoteB))
 	}
 
-	// 8. Verify Collision Failsafe over real HTTP socket
-	// Device B modifies note_b.md. In stateless CLI execution, conflicting edits fork safely into .conflict-local.md
 	_ = os.WriteFile(noteBPath, []byte("# Note B Conflicting Local Edit\n"), 0o644)
 	var syncBufConflict bytes.Buffer
-	err = executeHubSync(&syncBufConflict, dirB, clientB, cfgA.VaultID, password, secretKey, "Device B sync conflicting edit")
+	err = HubSync(&syncBufConflict, HubOp{
+		Dir:          dirB,
+		Client:       clientB,
+		VaultID:      cfgA.VaultID,
+		Password:     password,
+		SecretKey:    secretKey,
+		Message:      "Device B sync conflicting edit",
+		AgentVersion: "test",
+	})
 	if err != nil {
 		t.Fatalf("device B sync with conflict failed: %v", err)
 	}
@@ -325,7 +363,6 @@ func TestCmdHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("expected collision detected warning, got:\n%s", syncBufConflict.String())
 	}
 
-	// Verify conflict-local file created with zero data loss
 	conflictForkPath := filepath.Join(dirB, "concepts", "note_b.conflict-local.md")
 	conflictContent, err := os.ReadFile(conflictForkPath)
 	if err != nil {

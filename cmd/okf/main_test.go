@@ -1,100 +1,18 @@
 package main
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/okf-memory/okf-agent-memory/internal/cli"
 )
 
-func TestSplitOptionalPath(t *testing.T) {
-	tests := []struct {
-		name     string
-		args     []string
-		fallback string
-		wantPath string
-		wantArgs []string
-	}{
-		{
-			name:     "flags only",
-			args:     []string{"--limit", "3", "--json"},
-			fallback: "knowledge",
-			wantPath: "knowledge",
-			wantArgs: []string{"--limit", "3", "--json"},
-		},
-		{
-			name:     "explicit path before flags",
-			args:     []string{"custom-bundle", "--limit", "3"},
-			fallback: "knowledge",
-			wantPath: "custom-bundle",
-			wantArgs: []string{"--limit", "3"},
-		},
-		{
-			name:     "valued create flags",
-			args:     []string{"--type", "Fact", "--title", "Demo", "--desc", "Text"},
-			fallback: "knowledge",
-			wantPath: "knowledge",
-			wantArgs: []string{"--type", "Fact", "--title", "Demo", "--desc", "Text"},
-		},
-		{
-			name:     "valued update flags",
-			args:     []string{"--desc", "Updated text", "--actor", "agent/test"},
-			fallback: "knowledge",
-			wantPath: "knowledge",
-			wantArgs: []string{"--desc", "Updated text", "--actor", "agent/test"},
-		},
-		{
-			name:     "valued relate flags",
-			args:     []string{"--desc", "Relationship context", "--actor", "agent/test"},
-			fallback: "knowledge",
-			wantPath: "knowledge",
-			wantArgs: []string{"--desc", "Relationship context", "--actor", "agent/test"},
-		},
-		{
-			name:     "valued bootstrap flags",
-			args:     []string{"--name", "Demo", "--no-skill"},
-			fallback: ".",
-			wantPath: ".",
-			wantArgs: []string{"--name", "Demo", "--no-skill"},
-		},
-		{
-			name:     "no arguments",
-			fallback: ".",
-			wantPath: ".",
-			wantArgs: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotPath, gotArgs := splitOptionalPath(tt.args, tt.fallback)
-			if gotPath != tt.wantPath {
-				t.Fatalf("splitOptionalPath() path = %q, want %q", gotPath, tt.wantPath)
-			}
-			if !reflect.DeepEqual(gotArgs, tt.wantArgs) {
-				t.Fatalf("splitOptionalPath() args = %#v, want %#v", gotArgs, tt.wantArgs)
-			}
-		})
-	}
-}
-
-func TestHasHelpFlag(t *testing.T) {
-	tests := []struct {
-		args []string
-		want bool
-	}{
-		{[]string{"--help"}, true},
-		{[]string{"-h"}, true},
-		{[]string{"help"}, true},
-		{[]string{"architecture/database", "--help"}, true},
-		{[]string{"architecture/database", "-h"}, true},
-		{[]string{"--type", "Decision", "--help"}, true},
-		{[]string{"architecture/database"}, false},
-		{[]string{"--type", "Fact"}, false},
-		{nil, false},
-	}
-
-	for _, tt := range tests {
-		if got := hasHelpFlag(tt.args); got != tt.want {
-			t.Errorf("hasHelpFlag(%v) = %v, want %v", tt.args, got, tt.want)
-		}
+func TestMainDelegatesToCLI(t *testing.T) {
+	code := cli.Execute([]string{"version"}, cli.BuildInfo{
+		Version: "test-ver",
+		Commit:  "abcdef0",
+		Date:    "2026-09-25",
+	})
+	if code != 0 {
+		t.Fatalf("expected cli.Execute with version to return 0, got %d", code)
 	}
 }

@@ -6,6 +6,7 @@
 [![Tooling](https://img.shields.io/badge/Tooling-Go_1.26_%7C_Zero_Deps-00ADD8.svg)](pkg/okf)
 [![CI](https://github.com/okf-memory/okf-agent-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/okf-memory/okf-agent-memory/actions/workflows/ci.yml)
 [![Trendshift](https://img.shields.io/badge/Trendshift-%232_Go_Trending-ff5722.svg)](https://trendshift.io/repositories/215663)
+[![On StackMap](https://img.shields.io/endpoint?url=https%3A%2F%2Fstackmap.shipwithai.xyz%2Fapi%2Fbadge%2Fokf-agent-memory.json)](https://stackmap.shipwithai.xyz/repos/okf-memory/okf-agent-memory?utm_source=badge)
 [![Protocol](https://img.shields.io/badge/MCP-Ready-purple.svg)](cmd/okf)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ea4aaa.svg)](https://github.com/sponsors/sknr)
@@ -210,7 +211,7 @@ okf-agent-memory/
 │   ├── spec/               # OKF convention v0.1, compatibility analysis & architecture RFCs
 │   ├── security/           # Data governance, secret prevention & adversarial security audits
 │   ├── project/            # Project roadmap, release playbook & multi-agent testing
-│   └── releases/           # Versioned release notes & changelog archive (v0.1.0 – v0.4.3)
+│   └── releases/           # Versioned release notes & changelog archive (v0.1.0 - v0.4.4)
 ├── examples/               # Domain-neutral reference DMAA projects (AGENTS.md + OKF v0.2 knowledge/)
 │   ├── books/              # Literature & editorial analysis repository
 │   ├── coaching/           # Executive coaching & client session repository

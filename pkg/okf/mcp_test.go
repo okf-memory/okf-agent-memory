@@ -1,4 +1,4 @@
-package main
+package okf
 
 import (
 	"bytes"
@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/okf-memory/okf-agent-memory/pkg/okf"
 )
 
 func runMCPConversation(t *testing.T, bundleDir string, inputs []string) []jsonRPCResponse {
@@ -97,7 +95,7 @@ func TestMCPToolsListOutputSchemas(t *testing.T) {
 	// Every single tool must advertise an outputSchema with root type: "object"
 	// per MCP spec so strict clients (OpenCode, Pi agent, MCP SDK 2.0.0)
 	// accept the tools/list handshake.
-	for _, tool := range getMCPTools() {
+	for _, tool := range GetMCPTools() {
 		name, _ := tool["name"].(string)
 		schema, ok := tool["outputSchema"].(map[string]any)
 		if !ok {
@@ -115,9 +113,111 @@ func TestMCPToolsListOutputSchemas(t *testing.T) {
 	}
 }
 
+func TestMCPMutationMetadata(t *testing.T) {
+	bundle := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bundle, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Bundle\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "log.md"), []byte("# Log\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	requests := []struct {
+		name string
+		args map[string]any
+		fail bool
+	}{
+		{"okf_create", map[string]any{"concept_id": "item", "type": "Fact", "title": "Item", "description": "Original", "status": "draft", "tags": []string{" first ", "second"}}, false},
+		{"okf_show", map[string]any{"concept_id": "item"}, false},
+		{"okf_update", map[string]any{"concept_id": "item", "type": "Decision", "status": "deprecated", "tags": []string{"next"}}, false},
+		{"okf_show", map[string]any{"concept_id": "item"}, false},
+		{"okf_update", map[string]any{"concept_id": "item", "description": "Changed"}, false},
+		{"okf_update", map[string]any{"concept_id": "item", "tags": []string{}}, false},
+		{"okf_update", map[string]any{"concept_id": "item", "status": "active"}, true},
+		{"okf_create", map[string]any{"concept_id": "invalid", "type": "Fact", "title": "Invalid", "description": "Invalid", "status": "active"}, true},
+		{"okf_update", map[string]any{"concept_id": "item", "type": "  "}, true},
+		{"okf_update", map[string]any{"concept_id": "item", "tags": "comma,separated"}, true},
+		{"okf_update", map[string]any{"concept_id": "item", "tags": []string{strings.Repeat("x", 51)}}, true},
+		{"okf_create", map[string]any{"concept_id": "default-status", "type": "Fact", "title": "Default", "description": "Default"}, false},
+	}
+	var inputs []string
+	for i, r := range requests {
+		r.args["bundle"] = jsonPath(bundle)
+		encoded, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": i + 1, "method": "tools/call", "params": map[string]any{"name": r.name, "arguments": r.args}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inputs = append(inputs, string(encoded))
+	}
+	responses := runMCPConversation(t, bundle, inputs)
+	if len(responses) != len(requests) {
+		t.Fatalf("got %d responses, want %d", len(responses), len(requests))
+	}
+	for i, r := range requests {
+		result, ok := responses[i].Result.(map[string]any)
+		gotFail, _ := result["isError"].(bool)
+		if !ok || gotFail != r.fail {
+			t.Errorf("request %d (%s): unexpected result: %+v", i+1, r.name, responses[i])
+		}
+	}
+	for _, snapshot := range []struct {
+		index, tags      int
+		typeName, status string
+	}{
+		{1, 2, "Fact", "draft"},
+		{3, 1, "Decision", "deprecated"},
+	} {
+		result := responses[snapshot.index].Result.(map[string]any)
+		concept, ok := result["structuredContent"].(map[string]any)
+		tags, tagsOK := concept["tags"].([]any)
+		if !ok || !tagsOK || concept["type"] != snapshot.typeName || concept["status"] != snapshot.status || len(tags) != snapshot.tags {
+			t.Fatalf("unexpected mutation snapshot: %+v", result)
+		}
+		if snapshot.index == 1 && tags[0] != "first" {
+			t.Fatalf("create did not trim tag: %v", tags)
+		}
+		if snapshot.index == 3 && tags[0] != "next" {
+			t.Fatalf("update did not replace tags: %v", tags)
+		}
+	}
+	b, err := LoadBundle(bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := b.Concepts["item"]
+	if c == nil || c.Type != "Decision" || c.Status != "deprecated" || c.Description != "Changed" || len(c.Tags) != 0 {
+		t.Fatalf("unexpected updated concept: %+v", c)
+	}
+	if b.Concepts["default-status"] == nil || b.Concepts["default-status"].Status != "stable" {
+		t.Fatalf("omitted status did not default to stable: %+v", b.Concepts["default-status"])
+	}
+	if b.Concepts["invalid"] != nil {
+		t.Fatal("invalid status created a concept")
+	}
+}
+
+func TestMCPMutationMetadataSchemas(t *testing.T) {
+	for _, tool := range GetMCPTools() {
+		name, _ := tool["name"].(string)
+		if name != "okf_create" && name != "okf_update" {
+			continue
+		}
+		schema := tool["inputSchema"].(map[string]any)
+		props := schema["properties"].(map[string]any)
+		for _, field := range []string{"type", "status", "tags"} {
+			if _, ok := props[field]; !ok {
+				t.Errorf("%s schema missing %s", name, field)
+			}
+		}
+		status := props["status"].(map[string]any)
+		if len(status["enum"].([]any)) != 3 {
+			t.Errorf("%s status enum missing values: %v", name, status["enum"])
+		}
+	}
+}
+
 func TestMCPOutputSchemasProperties(t *testing.T) {
 	byName := map[string]map[string]any{}
-	for _, tool := range getMCPTools() {
+	for _, tool := range GetMCPTools() {
 		name, _ := tool["name"].(string)
 		byName[name] = tool
 	}
@@ -238,6 +338,12 @@ func TestMCPToolCalls(t *testing.T) {
 		`{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"okf_validate","arguments":{"strict":false}}}`,
 		// 7. Unknown tool
 		`{"jsonrpc":"2.0","id":17,"method":"tools/call","params":{"name":"non_existent_tool","arguments":{}}}`,
+		// 8. Search with filter
+		`{"jsonrpc":"2.0","id":18,"method":"tools/call","params":{"name":"okf_search","arguments":{"filter":"type=Decision"}}}`,
+		// 9. Search with stale_within
+		`{"jsonrpc":"2.0","id":19,"method":"tools/call","params":{"name":"okf_search","arguments":{"stale_within":"14d"}}}`,
+		// 10. Validate with stale_within
+		`{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"okf_validate","arguments":{"strict":false,"stale_within":"14d"}}}`,
 	}
 
 	// Initialize basic index.md in tmpDir so LoadBundle works
@@ -772,7 +878,7 @@ code_refs: ["pkg/**/*.go"]
 	cMap, _ := content[0].(map[string]any)
 	text, _ := cMap["text"].(string)
 
-	var results []okf.SearchResult
+	var results []SearchResult
 	if err := json.Unmarshal([]byte(text), &results); err != nil {
 		t.Fatalf("Failed to unmarshal search results: %v", err)
 	}
@@ -982,8 +1088,8 @@ func TestMCPUpdateWithInvalidArguments(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(bundleDir, "log.md"), []byte("# Log\n"), 0o644)
 
 	// create initial concept
-	c := &okf.Concept{ID: "test/concept", Path: "test/concept.md", Type: "Fact", Title: "Original Title", Description: "Original Desc"}
-	_ = okf.SaveConcept(bundleDir, c, true, false, false, "test")
+	c := &Concept{ID: "test/concept", Path: "test/concept.md", Type: "Fact", Title: "Original Title", Description: "Original Desc"}
+	_ = SaveConcept(bundleDir, c, SaveOptions{IsNew: true, Actor: "test"})
 
 	hugeTitle := strings.Repeat("t", 1001)
 
@@ -1017,7 +1123,7 @@ func TestMCPUpdateWithInvalidArguments(t *testing.T) {
 	}
 
 	// Verify fields were cleared
-	b, _ := okf.LoadBundle(bundleDir)
+	b, _ := LoadBundle(bundleDir)
 	updated, _ := b.Concepts["test/concept"]
 	if updated.Description != "" {
 		t.Errorf("Expected Description to be empty, got: %s", updated.Description)

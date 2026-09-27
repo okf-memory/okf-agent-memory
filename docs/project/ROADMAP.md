@@ -77,6 +77,7 @@ handle format correctness.
 
 ### In Progress / Next Milestones
 
+- [ ] Search scoring refinement: Fix DF/TF asymmetry for short acronyms & terms, restrict prefix matching (< 4 chars exact match), and add field TF normalization.
 - [ ] Community feedback and broader ecosystem adoption.
 - [ ] RFC: Hierarchical & Multi-Scope Memory (`scope: project` vs `scope: user`, Issue #11).
 - [ ] RFC: Federated Knowledge & Remote Vendoring (`https://` & `mcp://` scopes).

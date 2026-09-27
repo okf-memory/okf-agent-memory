@@ -5,7 +5,7 @@ description: "Client-side zero-knowledge AES-256-GCM envelope encryption, Argon2
 tags: [vault, crypto, zero-knowledge, sync, cas, reconcile]
 generated: { by: agent/gemini, at: "2026-09-17T13:07:28Z" }
 governance: constraint
-code_refs: [pkg/vault, pkg/sync, cmd/okf/hub.go]
+code_refs: [pkg/vault, pkg/sync, internal/cli/hub.go]
 ---
 
 # Zero-Knowledge Vault Cryptography and Blind Sync Architecture

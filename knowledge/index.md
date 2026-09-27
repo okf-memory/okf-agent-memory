@@ -20,3 +20,6 @@ The persistent knowledge corpus for the `okf-agent-memory` project, structured a
 
 # Roadmap
 * [Project Roadmap & Development Milestones](roadmap/milestones.md) - Phased implementation roadmap from specification validation to Go library, CLI tooling, cross-agent testing, and zero-knowledge hub sync.
+
+# Requirements
+* [Metadata Mutation Parity for CLI and MCP](requirements/mutation-metadata.md) - CLI and MCP creation and update must expose type, status, and tags with explicit replacement semantics and valid lifecycle values.

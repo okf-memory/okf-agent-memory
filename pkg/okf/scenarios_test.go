@@ -53,7 +53,7 @@ func TestScenario02_ExistingProjectDiscovery(t *testing.T) {
 		Body:        "# OAuth2 PKCE\n\nAll mobile and web clients must use Authorization Code Flow with PKCE.",
 		Tags:        []string{"auth", "oauth", "security"},
 	}
-	if err := okf.SaveConcept(tmpDir, c1, true, true, true, "agent/claude"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c1, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/claude"}); err != nil {
 		t.Fatalf("SaveConcept failed: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestScenario03_RepeatedTaskAntiDuplication(t *testing.T) {
 		Description: "Default user session timeout is set to 15 minutes.",
 		Body:        "# Session Timeout\n\nTTL = 900 seconds.",
 	}
-	if err := okf.SaveConcept(tmpDir, c, true, true, true, "agent/v1"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/v1"}); err != nil {
 		t.Fatalf("SaveConcept failed: %v", err)
 	}
 
@@ -109,7 +109,7 @@ func TestScenario03_RepeatedTaskAntiDuplication(t *testing.T) {
 	targetConcept.Description = "Default user session timeout is set to 30 minutes."
 	targetConcept.Body = "# Session Timeout\n\nTTL = 1800 seconds (extended)."
 
-	if err := okf.SaveConcept(tmpDir, targetConcept, false, true, true, "agent/v2"); err != nil {
+	if err := okf.SaveConcept(tmpDir, targetConcept, okf.SaveOptions{IsNew: false, AutoLog: true, AutoIndex: true, Actor: "agent/v2"}); err != nil {
 		t.Fatalf("Update concept failed: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestScenario04_ContradictionDetection(t *testing.T) {
 		Status:      "stable",
 		Body:        "# API Protocol\n\nStrict gRPC over HTTP/2 everywhere.",
 	}
-	if err := okf.SaveConcept(tmpDir, cOld, true, true, true, "agent/v1"); err != nil {
+	if err := okf.SaveConcept(tmpDir, cOld, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/v1"}); err != nil {
 		t.Fatalf("SaveConcept cOld failed: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestScenario04_ContradictionDetection(t *testing.T) {
 	cOldFound := b.Concepts[results[0].ConceptID]
 	cOldFound.Status = "deprecated"
 	cOldFound.Description = "Deprecated in favor of REST JSON gateway."
-	if err := okf.SaveConcept(tmpDir, cOldFound, false, true, true, "agent/v2"); err != nil {
+	if err := okf.SaveConcept(tmpDir, cOldFound, okf.SaveOptions{IsNew: false, AutoLog: true, AutoIndex: true, Actor: "agent/v2"}); err != nil {
 		t.Fatalf("Deprecated save failed: %v", err)
 	}
 
@@ -178,7 +178,7 @@ func TestScenario04_ContradictionDetection(t *testing.T) {
 		Status:      "stable",
 		Body:        "# REST Gateway\n\nSupersedes [gRPC Decision](api-protocol.md).",
 	}
-	if err := okf.SaveConcept(tmpDir, cNew, true, true, true, "agent/v2"); err != nil {
+	if err := okf.SaveConcept(tmpDir, cNew, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/v2"}); err != nil {
 		t.Fatalf("SaveConcept cNew failed: %v", err)
 	}
 
@@ -251,7 +251,7 @@ PostgreSQL 16 is our primary relational store.
 	}
 
 	c.Body = "# Database Selection\n\nPostgreSQL 16 is our primary relational store. Added read-replica configuration."
-	if err := okf.SaveConcept(tmpDir, c, false, true, true, "agent/update-bot"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c, okf.SaveOptions{IsNew: false, AutoLog: true, AutoIndex: true, Actor: "agent/update-bot"}); err != nil {
 		t.Fatalf("SaveConcept failed: %v", err)
 	}
 
@@ -288,7 +288,7 @@ func TestScenario06_MultiSessionEvolution(t *testing.T) {
 		Description: "Handles Stripe payment processing.",
 		Body:        "# Payment Service\n\nStripe integration service.",
 	}
-	if err := okf.SaveConcept(tmpDir, c1, true, true, true, "agent/session-1"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c1, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/session-1"}); err != nil {
 		t.Fatalf("SaveConcept session 1 failed: %v", err)
 	}
 
@@ -300,7 +300,7 @@ func TestScenario06_MultiSessionEvolution(t *testing.T) {
 		Description: "Ingests asynchronous third-party webhooks.",
 		Body:        "# Webhook Receiver\n\nReceives Stripe webhook notifications.",
 	}
-	if err := okf.SaveConcept(tmpDir, c2, true, true, true, "agent/session-2"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c2, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/session-2"}); err != nil {
 		t.Fatalf("SaveConcept session 2 failed: %v", err)
 	}
 
@@ -363,7 +363,7 @@ func TestScenario07_LargeCorpusProgressiveDisclosure(t *testing.T) {
 			c.Description = "Critical needle in haystack for progressive disclosure evaluation."
 			c.Tags = append(c.Tags, "needle", "benchmark")
 		}
-		if err := okf.SaveConcept(tmpDir, c, true, false, true, "agent/generator"); err != nil {
+		if err := okf.SaveConcept(tmpDir, c, okf.SaveOptions{IsNew: true, AutoLog: false, AutoIndex: true, Actor: "agent/generator"}); err != nil {
 			t.Fatalf("Failed saving concept %d: %v", i, err)
 		}
 	}

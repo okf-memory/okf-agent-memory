@@ -260,7 +260,7 @@ func TestMutateAndAutoBookkeeping(t *testing.T) {
 		Body:        "# Fact\n\nTesting fact content.",
 	}
 
-	if err := okf.SaveConcept(tmpDir, c, true, true, true, "agent/unit-test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/unit-test"}); err != nil {
 		t.Fatalf("SaveConcept failed: %v", err)
 	}
 
@@ -311,10 +311,10 @@ func TestRelateConcepts(t *testing.T) {
 		Body:        "# API Gateway\n\nGateway details.",
 	}
 
-	if err := okf.SaveConcept(tmpDir, c1, true, true, true, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c1, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/test"}); err != nil {
 		t.Fatalf("Save c1 failed: %v", err)
 	}
-	if err := okf.SaveConcept(tmpDir, c2, true, true, true, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c2, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/test"}); err != nil {
 		t.Fatalf("Save c2 failed: %v", err)
 	}
 
@@ -366,7 +366,7 @@ func TestRelateConcepts(t *testing.T) {
 	}
 
 	c1.Title = "OAuth 2.0 Flow"
-	if err := okf.SaveConcept(tmpDir, c1, false, false, false, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c1, okf.SaveOptions{IsNew: false, Actor: "agent/test"}); err != nil {
 		t.Fatalf("SaveConcept after title change failed: %v", err)
 	}
 	if err := okf.RelateConcepts(tmpDir, "services/gateway", "auth/oauth", "verifies incoming tokens", "agent/test"); err != nil {
@@ -394,10 +394,10 @@ func TestRelateConceptsUsesCanonicalRelatedSection(t *testing.T) {
 		Title: "Source",
 		Body:  "# Source\n\n# Related Work\n\nBackground research.",
 	}
-	if err := okf.SaveConcept(tmpDir, target, true, false, false, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, target, okf.SaveOptions{IsNew: true, Actor: "agent/test"}); err != nil {
 		t.Fatalf("Save target failed: %v", err)
 	}
-	if err := okf.SaveConcept(tmpDir, source, true, false, false, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, source, okf.SaveOptions{IsNew: true, Actor: "agent/test"}); err != nil {
 		t.Fatalf("Save source failed: %v", err)
 	}
 
@@ -416,7 +416,7 @@ func TestRelateConceptsUsesCanonicalRelatedSection(t *testing.T) {
 	}
 
 	source.Body = "# Source\n\n# Related Concepts\n\n- Existing relation\n\n# Notes\n\nKeep this last."
-	if err := okf.SaveConcept(tmpDir, source, false, false, false, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, source, okf.SaveOptions{IsNew: false, Actor: "agent/test"}); err != nil {
 		t.Fatalf("Reset source failed: %v", err)
 	}
 	if err := okf.RelateConcepts(tmpDir, "source", "target", "supports", "agent/test"); err != nil {
@@ -432,7 +432,7 @@ func TestRelateConceptsUsesCanonicalRelatedSection(t *testing.T) {
 	}
 
 	source.Body = "# Source\n\n# Related Concepts\n\n```markdown\n- [Target](target.md): illustrated only\n```"
-	if err := okf.SaveConcept(tmpDir, source, false, false, false, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, source, okf.SaveOptions{IsNew: false, Actor: "agent/test"}); err != nil {
 		t.Fatalf("Reset source with fenced example failed: %v", err)
 	}
 	for i := 0; i < 2; i++ {

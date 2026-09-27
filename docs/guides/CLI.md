@@ -34,11 +34,12 @@ okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
 * **Flags**:
   * `--strict`: Fails the producer gate on broken links, orphans, superseded verifications, and schema discrepancies.
   * `--stale`: Fails the producer gate if any concept has reached or passed its `stale_after` date.
+  * `--stale-within <duration>`: Fails the producer gate if any concept will expire within the given relative horizon (e.g. `14d`, `2w`, `3m`).
   * `--drift`: Checks whether concept listings in index files differ from concept descriptions, and verifies that `code_refs` point to valid source paths.
   * `--json`: Emits machine-readable JSON diagnostics.
 * **Exit Codes**:
   * `0`: Valid & conformant (producer gate passed).
-  * `1`: Non-conformant or failed producer gate (`--strict` / `--stale`).
+  * `1`: Non-conformant or failed producer gate (`--strict` / `--stale` / `--stale-within`).
   * `2`: File system or bundle loading error.
 
 #### JSON Output Example:
@@ -61,17 +62,28 @@ okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
 
 ### 2. `search`
 
-Searches concepts within a bundle using fast in-memory BM25 scoring across titles, descriptions, tags, IDs, and body text, or discovers concepts governing a specific file path via `code_refs`.
+Searches concepts within a bundle using fast in-memory BM25 scoring across titles, descriptions, tags, IDs, and body text, filters by frontmatter metadata predicates, or discovers concepts governing a specific file path via `code_refs`.
 
 ```bash
-okf search [query] [bundle-path] [--for-path <file-or-dir>] [--limit <N>] [--json]
+okf search [query] [bundle-path] \
+  [--for-path <file-or-dir>] \
+  [--filter <predicate>] \
+  [--stale-within <duration>] \
+  [--limit <N>] \
+  [--json]
 ```
 
 * **Arguments**:
-  * `query` (optional when `--for-path` is provided): Search terms or keywords.
+  * `query` (optional when `--for-path`, `--filter`, or `--stale-within` is provided): Search terms or keywords.
   * `bundle-path` (optional, default: `./knowledge`).
 * **Flags**:
   * `--for-path <path>`: Filters concepts governing a specific source file or directory via `code_refs` (exact match, directory prefix, standard glob, or recursive `**` wildcard).
+  * `--filter <expr>`: Filters concepts by frontmatter key-value predicates (supports `=`, `!=`, `null`/`nil` checks, and comma-separated clauses). Examples:
+    * `--filter "type=Decision"`
+    * `--filter "verified.by=human"`
+    * `--filter "verified.by!=null,governance=constraint"`
+    * `--filter "tags=security"`
+  * `--stale-within <duration>`: Filters concepts that are already stale or will expire within relative horizon (e.g. `14d`, `2w`, `3m`).
   * `--limit <N>` (default: `10`): Maximum results to return.
   * `--json`: Outputs machine-readable JSON array of matching concepts with governance tiers and matched fields.
 
@@ -125,6 +137,7 @@ okf create <concept-id> [bundle-path] \
   --title "<Title>" \
   --desc "<One-sentence description>" \
   [--body "<Markdown body>"] \
+  [--status draft|stable|deprecated] \
   [--tags "tag1,tag2"] \
   [--actor "agent/<model>"] \
   [--no-log] \
@@ -137,6 +150,7 @@ okf create <concept-id> [bundle-path] \
   * `--title`: Human-readable concept title.
   * `--desc`: Exactly one concise sentence describing the concept.
   * `--body`: Markdown content following frontmatter.
+  * `--status`: Lifecycle status (`draft`, `stable`, or `deprecated`; default `stable`).
   * `--tags`: Comma-separated list of tags.
   * `--actor`: Author string (default: `agent/cli`).
   * `--no-log`: Skips appending an entry to `log.md`.
@@ -153,11 +167,28 @@ okf update <concept-id> [bundle-path] \
   [--title "<New Title>"] \
   [--desc "<Updated description>"] \
   [--body "<Updated body>"] \
+  [--type <Type>] \
+  [--status draft|stable|deprecated] \
+  [--tags "tag1,tag2"] \
   [--actor "agent/<model>"] \
   [--no-log] \
   [--no-index] \
   [--json]
 ```
+
+* **Flags**:
+  * `--desc`: Updated one-sentence description.
+  * `--title`: Updated concept title.
+  * `--body`: Updated markdown body content.
+  * `--type`: Updated non-empty concept type.
+  * `--status`: Updated lifecycle status (`draft`, `stable`, or `deprecated`).
+  * `--tags`: Replacement comma-separated tags (pass `--tags ""` to clear tags).
+  * `--actor`: Author provenance identifier (default: `agent/cli`).
+  * `--no-log`: Skips appending an entry to `log.md`.
+  * `--no-index`: Skips updating the parent `index.md` listing.
+  * `--json`: Emit machine-readable JSON result.
+
+Only supplied flags change the existing concept. `--type` requires a non-empty value, `--status` accepts only `draft`, `stable`, or `deprecated`, and `--tags` replaces the current tags after trimming each comma-separated value. Pass `--tags ""` to clear all tags; omit it to retain them.
 
 ---
 
@@ -224,10 +255,12 @@ okf mcp [bundle-path]
 | :--- | :--- | :--- |
 | `okf_search` | `query` (string, opt), `for_path` (string, opt), `limit` (int) | Query memory corpus via BM25 ranking, or find concepts governing a file via `code_refs`. |
 | `okf_show` | `concept_id` (string) | Fetch concept frontmatter, body, and graph links. |
-| `okf_create` | `id`, `type`, `title`, `description`, `body`, `tags` | Create concept with automatic index & log bookkeeping. |
-| `okf_update` | `id`, `title`, `description`, `body` | Update existing concept and record in log.md. |
+| `okf_create` | `concept_id`, `type`, `title`, `description`, `body`, `status`, `tags` | Create concept with automatic index & log bookkeeping; status defaults to `stable`. |
+| `okf_update` | `concept_id`, `type`, `status`, `tags`, `title`, `description`, `body` | Update only supplied fields and record in log.md; empty `tags` array clears tags. |
 | `okf_relate` | `source_id`, `target_id`, `description` | Link two concepts together. |
 | `okf_validate` | `strict` (bool), `drift` (bool) | Verify bundle conformance. |
+
+MCP `tags` is an array of strings (max 50 chars per tag), such as `["auth", "security"]`. Both MCP tools accept lifecycle statuses `draft`, `stable`, and `deprecated`; updating with no `status` retains the existing value.
 
 ---
 
@@ -286,4 +319,3 @@ Runs the embedded blind CAS and atomic head pointer server locally on the specif
 ```bash
 okf hub serve [-port 8080] [-storage <dir>]
 ```
-

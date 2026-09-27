@@ -1,3 +1,16 @@
+## 2026-09-27
+* **Release**: Published version v0.4.4: Metadata mutation parity for CLI and MCP (#38, #39), core MCP server and Hub sync decoupling into dedicated packages, generic frontmatter query filter AST evaluation (`--filter`), temporal staleness horizon projection (`--stale-within`), and drift validation link resolution fix (#41).
+* **Fix**: Resolved false positive parent index warnings in drift validation for bundle-absolute and dot-relative links (#41).
+* **Update**: Synchronized root `knowledge/index.md` with `requirements/mutation-metadata.md` and constrained MCP tag length to 50 characters (#38, #39).
+
+## 2026-09-26
+* **Update**: Linked `requirements/mutation-metadata.md` to `architecture/tooling-decision.md` (Specifies lifecycle and tag mutation behavior for the Go CLI and MCP surfaces.).
+* **Creation**: Documented concept `requirements/mutation-metadata.md` (Metadata Mutation Parity for CLI and MCP).
+
+## 2026-09-25
+* **Refactoring**: Decoupled CLI subcommand implementations and command registry into `internal/cli` to keep `cmd/okf` lean and encapsulate command parsing.
+* **Update**: Synchronized `code_refs` in `architecture/governance-model.md` and `architecture/zero-knowledge-vault-sync.md`.
+
 ## 2026-09-23
 * **Release**: Published version v0.4.3 — Cross-platform absolute path evasion defense (`IsAbsPath`), multi-line YAML frontmatter smuggling defense in concept bodies, CLI validate findings taxonomy separation and summary counter reconciliation, and automated security audit discovery expansion.
 * **Update**: Updated concept `convention/release-procedure.md`.

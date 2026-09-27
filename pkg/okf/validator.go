@@ -20,6 +20,11 @@ var (
 	}
 )
 
+// IsValidConceptStatus reports whether status is an OKF v0.2 lifecycle value.
+func IsValidConceptStatus(status string) bool {
+	return validStatuses[status]
+}
+
 // ValidationResult contains all validation diagnostics.
 type ValidationResult struct {
 	BundlePath   string       `json:"bundle_path"`
@@ -37,9 +42,10 @@ type ValidationResult struct {
 
 // ValidateOptions controls validation severity and checks.
 type ValidateOptions struct {
-	Strict bool
-	Drift  bool
-	Stale  bool
+	Strict      bool
+	Drift       bool
+	Stale       bool
+	StaleWithin time.Duration
 }
 
 func parseTimestamp(s string) (time.Time, bool) {
@@ -218,7 +224,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 		}
 
 		// Lifecycle validation
-		if c.Status != "" && !validStatuses[c.Status] {
+		if c.Status != "" && !IsValidConceptStatus(c.Status) {
 			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: status '%s' is not draft|stable|deprecated", at, c.Status))
 		}
 		if c.StaleAfter != "" {
@@ -227,6 +233,9 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			} else if today >= c.StaleAfter {
 				res.StaleCount++
 				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: concept is stale (stale_after %s <= %s)", at, c.StaleAfter, today))
+			} else if opts.StaleWithin > 0 && c.IsStaleWithin(time.Now().UTC(), opts.StaleWithin) {
+				res.StaleCount++
+				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: concept will become stale soon (stale_after %s within %v)", at, c.StaleAfter, opts.StaleWithin))
 			}
 		}
 	}
@@ -261,6 +270,19 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 
 		// Check that each concept is listed in its immediate parent index.md
 		if len(b.Indexes) > 0 {
+			indexTargets := make(map[string]map[string]bool, len(b.Indexes))
+			for idxPath, idxContent := range b.Indexes {
+				body := StripFences(idxContent)
+				matches := linkRegex.FindAllStringSubmatch(body, -1)
+				targets := make(map[string]bool, len(matches))
+				for _, match := range matches {
+					if targetID := b.ResolveLink(idxPath, match[1]); targetID != "" {
+						targets[targetID] = true
+					}
+				}
+				indexTargets[idxPath] = targets
+			}
+
 			for _, c := range b.Concepts {
 				normConceptPath := strings.ReplaceAll(c.Path, "\\", "/")
 				dir := path.Dir(normConceptPath)
@@ -268,15 +290,13 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 				if dir != "." {
 					indexRel = path.Join(dir, "index.md")
 				}
-				idxContent, ok := b.Indexes[indexRel]
+				targets, ok := indexTargets[indexRel]
 				if !ok {
 					res.Warnings = append(res.Warnings, fmt.Sprintf("%s: parent index %s does not exist", c.Path, indexRel))
 					continue
 				}
 
-				targetFilename := filepath.Base(c.Path)
-				linkTarget := fmt.Sprintf("(%s)", targetFilename)
-				if !strings.Contains(idxContent, linkTarget) {
+				if !targets[c.ID] {
 					res.Warnings = append(res.Warnings, fmt.Sprintf("%s: concept is not listed in parent index %s", c.Path, indexRel))
 				}
 			}
@@ -314,7 +334,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 	res.IsConformant = len(res.Errors) == 0
 	gateFailure := (opts.Strict && (len(b.BrokenLinks) > 0 || len(b.Orphans) > 0)) ||
 		(opts.Strict && isV2 && len(res.GateFindings) > 0) ||
-		(opts.Stale && res.StaleCount > 0)
+		((opts.Stale || opts.StaleWithin > 0) && res.StaleCount > 0)
 	res.GatePassed = res.IsConformant && !gateFailure
 
 	return res

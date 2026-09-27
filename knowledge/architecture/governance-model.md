@@ -5,7 +5,7 @@ description: "3-tier epistemic governance model (constraint, hold, context) and 
 tags: [governance, authority, code-refs, binding, architecture, decision]
 generated: { by: agent/cli, at: "2026-09-11T15:37:43Z" }
 governance: constraint
-code_refs: [pkg/okf/types.go, pkg/okf/search.go, pkg/okf/validator.go, cmd/okf/main.go, cmd/okf/mcp.go]
+code_refs: [pkg/okf/types.go, pkg/okf/search.go, pkg/okf/validator.go, pkg/okf/mcp.go, cmd/okf/main.go, internal/cli/root.go]
 ---
 
 # Governance vs. Execution Context and Code Binding

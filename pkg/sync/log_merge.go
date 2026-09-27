@@ -52,7 +52,8 @@ func MergeLogContent(localBytes, remoteBytes []byte) ([]byte, error) {
 	})
 
 	var sb strings.Builder
-	sb.WriteString(strings.TrimRight(preamble, "\r\n") + "\n\n")
+	sb.WriteString(strings.TrimRight(preamble, "\r\n"))
+	sb.WriteString("\n\n")
 
 	for i, d := range dates {
 		rawEntries := dateMap[d]

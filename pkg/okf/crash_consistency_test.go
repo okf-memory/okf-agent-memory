@@ -27,7 +27,7 @@ func TestCrashConsistency_MemoryWriteWithoutIndex(t *testing.T) {
 		Description: "Filesystem markdown as SSoT.",
 		Body:        "# Storage\n\nSSoT in git.",
 	}
-	if err := okf.SaveConcept(tmpDir, c1, true, true, true, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c1, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/test"}); err != nil {
 		t.Fatalf("SaveConcept c1 failed: %v", err)
 	}
 
@@ -41,7 +41,7 @@ func TestCrashConsistency_MemoryWriteWithoutIndex(t *testing.T) {
 		Body:        "# Caching\n\nIn-memory cache.",
 	}
 	// Calling SaveConcept with autoIndex=false, autoLog=false simulates the crash gap:
-	if err := okf.SaveConcept(tmpDir, c2, true, false, false, "agent/test"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c2, okf.SaveOptions{IsNew: true, Actor: "agent/test"}); err != nil {
 		t.Fatalf("SaveConcept c2 failed: %v", err)
 	}
 
@@ -150,7 +150,7 @@ func TestCrashConsistency_DeduplicationDivergence(t *testing.T) {
 		Description: "Session timeout is 15 minutes.",
 		Body:        "# Session Lifetime\n\nTTL = 900s.",
 	}
-	if err := okf.SaveConcept(tmpDir, c1, true, false, false, "agent/v1"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c1, okf.SaveOptions{IsNew: true, Actor: "agent/v1"}); err != nil {
 		t.Fatalf("SaveConcept c1 failed: %v", err)
 	}
 
@@ -173,7 +173,7 @@ func TestCrashConsistency_DeduplicationDivergence(t *testing.T) {
 		Description: "Session lifetime is 15 minutes.",
 		Body:        "# Session Timeout\n\nTTL = 900 seconds.",
 	}
-	if err := okf.SaveConcept(tmpDir, c2, true, true, true, "agent/v2"); err != nil {
+	if err := okf.SaveConcept(tmpDir, c2, okf.SaveOptions{IsNew: true, AutoLog: true, AutoIndex: true, Actor: "agent/v2"}); err != nil {
 		t.Fatalf("SaveConcept c2 failed: %v", err)
 	}
 
