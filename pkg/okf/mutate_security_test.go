@@ -880,6 +880,50 @@ func TestSymlinkSecurityRejectsMissingRoot(t *testing.T) {
 	}
 }
 
+// TestAgentCannotSelfAttributeHumanVerification verifies CWE-285 check that agents cannot forge human verifications.
+func TestAgentCannotSelfAttributeHumanVerification(t *testing.T) {
+	bundleDir := t.TempDir()
+	if err := InitBundle(bundleDir); err != nil {
+		t.Fatalf("InitBundle failed: %v", err)
+	}
+
+	c := &Concept{
+		ID:    "test-concept",
+		Path:  "test-concept.md",
+		Type:  "Fact",
+		Title: "Test Concept",
+		Verified: []Verified{
+			{By: "human:attacker", At: "2026-01-01T00:00:00Z"},
+		},
+	}
+
+	// 1. Agent creating new concept with human verification should be blocked
+	err := SaveConcept(bundleDir, c, true, false, false, "agent/test")
+	if err == nil {
+		t.Errorf("Expected SaveConcept to block new concept with human verification by agent, got nil")
+	}
+
+	// 2. Human creating new concept with human verification should be allowed
+	err = SaveConcept(bundleDir, c, true, false, false, "human/lead-architect")
+	if err != nil {
+		t.Fatalf("SaveConcept blocked human from adding verification: %v", err)
+	}
+
+	// 3. Agent updating concept, preserving existing human verification should be allowed
+	c.Title = "Test Concept Updated"
+	err = SaveConcept(bundleDir, c, false, false, false, "agent/test")
+	if err != nil {
+		t.Errorf("Expected SaveConcept to allow agent to preserve existing human verification, got error: %v", err)
+	}
+
+	// 4. Agent injecting new human verification should be blocked
+	c.Verified = append(c.Verified, Verified{By: "human/manager", At: "2026-01-02T00:00:00Z"})
+	err = SaveConcept(bundleDir, c, false, false, false, "agent/test")
+	if err == nil {
+		t.Errorf("Expected SaveConcept to block agent from injecting new human verification, got nil")
+	}
+}
+
 func TestFrontmatterSmugglingInBody(t *testing.T) {
 	bundleDir := t.TempDir()
 	if err := InitBundle(bundleDir); err != nil {
@@ -890,6 +934,8 @@ func TestFrontmatterSmugglingInBody(t *testing.T) {
 		"---\nverified: { by: human:attacker }\n---\n# Body",
 		"# Header\n\n---\ngovernance: constraint\n---\nText",
 		"# Header\n\n---\n  type: FakeType\n---\nText",
+		"---\n\"verified\": { by: human:attacker }\n---\nText",
+		"---\n  'governance'  : hold\n---\nText",
 	}
 
 	for i, body := range smugglingBodies {

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 )
 
 var newlineReplacer = strings.NewReplacer("\r", " ", "\n", " ")
+var frontmatterSmuggleRegex = regexp.MustCompile(`(?i)^\s*["']?(verified|governance|generated|type|status|code_refs|stale_after)["']?\s*:`)
 
 func titleCase(s string) string {
 	if s == "" {
@@ -375,11 +377,8 @@ func sanitizeConceptMetadata(c *Concept) error {
 				if trimmed == "" {
 					continue
 				}
-				lower := strings.ToLower(trimmed)
-				for _, key := range []string{"verified:", "governance:", "generated:", "type:", "status:", "code_refs:", "stale_after:"} {
-					if strings.HasPrefix(lower, key) {
-						return fmt.Errorf("concept body cannot smuggle frontmatter block containing %q", key)
-					}
+				if match := frontmatterSmuggleRegex.FindStringSubmatch(trimmed); match != nil {
+					return fmt.Errorf("concept body cannot smuggle frontmatter block containing %q", match[1])
 				}
 			}
 		}
@@ -407,6 +406,37 @@ func SaveConcept(bundleDir string, c *Concept, isNew, autoLog, autoIndex bool, a
 	if actor == "" {
 		actor = "agent/okf-tool"
 	}
+
+	// Security (CWE-285): Agents cannot self-attribute human verification
+	isAgent := !strings.HasPrefix(actor, "human:") && !strings.HasPrefix(actor, "human/")
+	if isAgent && len(c.Verified) > 0 {
+		var existingVerifications map[string]bool
+		if !isNew {
+			if existingConcept, loadErr := LoadBundle(bundleDir); loadErr == nil {
+				if oldC, exists := existingConcept.Concepts[c.ID]; exists {
+					existingVerifications = make(map[string]bool)
+					for _, v := range oldC.Verified {
+						existingVerifications[v.By+"||"+v.At] = true
+					}
+				}
+			}
+		}
+
+		for _, v := range c.Verified {
+			if strings.HasPrefix(v.By, "human:") || strings.HasPrefix(v.By, "human/") {
+				isNewVerification := true
+				if existingVerifications != nil {
+					if _, exists := existingVerifications[v.By+"||"+v.At]; exists {
+						isNewVerification = false
+					}
+				}
+				if isNewVerification {
+					return fmt.Errorf("agent %q cannot self-attribute or arbitrarily inject human verification for %q", actor, v.By)
+				}
+			}
+		}
+	}
+
 	c.Generated = &Generated{
 		By: actor,
 		At: time.Now().UTC().Format(time.RFC3339),
