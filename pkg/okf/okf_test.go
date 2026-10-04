@@ -1161,3 +1161,37 @@ func TestLoadBundle_ProjectRootWithKnowledgeSubdirAndAgentsMD(t *testing.T) {
 		t.Errorf("Expected valid conformant bundle, got errors: %v, warnings: %v", res.Errors, res.Warnings)
 	}
 }
+
+func TestExtraListValuesParseAsListsAndRoundTrip(t *testing.T) {
+	raw := "---\ntype: Fact\ncommands:\n- git commit\n- \"a: b\"\n- 'x, y'\nrepos: [contextopia, \"easy, gov\"]\nmix:\n  - a: 1\n    b: 2\n---\n# Fact\n"
+	c, err := okf.ParseConcept("test.md", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(c.Extra["commands"], []any{"git commit", "a: b", "x, y"}) {
+		t.Fatalf("block list = %#v", c.Extra["commands"])
+	}
+	if !reflect.DeepEqual(c.Extra["repos"], []any{"contextopia", "easy, gov"}) {
+		t.Fatalf("flow list = %#v", c.Extra["repos"])
+	}
+	if !reflect.DeepEqual(c.Extra["mix"], []string{"- a: 1", "  b: 2"}) {
+		t.Fatalf("a list of mappings should stay raw block lines, got %#v", c.Extra["mix"])
+	}
+
+	serialized := okf.SerializeConcept(c)
+	if !strings.Contains(serialized, "commands:\n  - git commit\n  - \"a: b\"\n  - \"x, y\"\n") {
+		t.Fatalf("block list not written as a block list:\n%s", serialized)
+	}
+	parsed, err := okf.ParseConcept("test.md", serialized)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"commands", "repos", "mix"} {
+		if !reflect.DeepEqual(parsed.Extra[key], c.Extra[key]) {
+			t.Fatalf("%s did not round-trip: %#v != %#v", key, parsed.Extra[key], c.Extra[key])
+		}
+	}
+	if again := okf.SerializeConcept(parsed); again != serialized {
+		t.Fatalf("list metadata drifted across round trips:\n%s\n%s", serialized, again)
+	}
+}

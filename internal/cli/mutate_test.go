@@ -88,3 +88,49 @@ func TestCLIMutationInvalidStatus(t *testing.T) {
 		t.Fatalf("invalid update modified concept: %v", err)
 	}
 }
+
+// Issue #49: custom list-valued frontmatter fields are lists when read and stay
+// lists after `okf update`, as tags do.
+func TestCLIUpdateKeepsCustomListFields(t *testing.T) {
+	bundle := mutationTestBundle(t)
+	concept := "---\ntype: Fact\ntitle: Item\ntags: [git]\ncommands:\n  - git commit\n  - \"git push\"\nrepos: [contextopia, easygov]\n---\n# Item\n"
+	if err := os.WriteFile(filepath.Join(bundle, "item.md"), []byte(concept), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"commands": []any{"git commit", "git push"},
+		"repos":    []any{"contextopia", "easygov"},
+	}
+	check := func(when string) string {
+		t.Helper()
+		b, err := okf.LoadBundle(bundle)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := b.Concepts["item"]
+		for key, value := range want {
+			if !reflect.DeepEqual(c.Extra[key], value) {
+				t.Fatalf("%s: extra.%s = %#v, want %#v", when, key, c.Extra[key], value)
+			}
+		}
+		if !reflect.DeepEqual(c.Tags, []string{"git"}) {
+			t.Fatalf("%s: tags = %#v", when, c.Tags)
+		}
+		raw, err := os.ReadFile(filepath.Join(bundle, "item.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(raw)
+	}
+
+	check("before update")
+	cmdUpdate([]string{"item", bundle, "--desc", "updated"})
+	written := check("after update")
+	if strings.Contains(written, `"[`) {
+		t.Fatalf("update wrote a list as a quoted string:\n%s", written)
+	}
+	cmdUpdate([]string{"item", bundle, "--desc", "updated again"})
+	if again := check("after a second update"); again != strings.Replace(written, "updated", "updated again", 1) {
+		t.Fatalf("custom lists drifted across updates:\nfirst:\n%s\nsecond:\n%s", written, again)
+	}
+}

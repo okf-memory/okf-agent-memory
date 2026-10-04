@@ -317,6 +317,9 @@ func ParseConcept(relPath, content string) (*Concept, error) {
 		default:
 			if len(b.lines) == 0 {
 				c.Extra[k] = parseExtraValue(b.inline)
+			} else if items, ok := parseBlockScalarList(b.inline, b.lines); ok {
+				c.Extra[k] = items
+				c.extraBlocks[k] = true
 			} else {
 				c.Extra[k] = normalizeBlockLines(b.lines)
 				c.extraBlocks[k] = true
@@ -361,7 +364,54 @@ func parseExtraValue(s string) any {
 	if json.Unmarshal([]byte(s), &value) == nil {
 		return value
 	}
+	// A YAML flow list that isn't JSON, such as `[contextopia, easygov]`, is
+	// a list of strings, as it is for tags.
+	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
+		items := []any{}
+		for _, item := range ParseStringList(s, nil) {
+			items = append(items, item)
+		}
+		return items
+	}
 	return unquote(s)
+}
+
+// parseBlockScalarList reads a block list of plain or quoted scalars, such as
+//
+//	commands:
+//	  - git commit
+//	  - "git push"
+//
+// as a list of strings. It reports false for anything else (nested mappings,
+// nested lists, multi-line items), which stays as raw block lines.
+func parseBlockScalarList(inline string, lines []string) ([]any, bool) {
+	if inline != "" {
+		return nil, false
+	}
+	items := []any{}
+	for _, line := range normalizeBlockLines(lines) {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		after, ok := strings.CutPrefix(line, "-")
+		if !ok || (after != "" && after[0] != ' ' && after[0] != '\t') {
+			return nil, false
+		}
+		val := strings.TrimSpace(after)
+		if val == "" || strings.ContainsAny(val[:1], "[{|>&*!-#") {
+			return nil, false
+		}
+		if quoted := val[0] == '"' || val[0] == '\''; !quoted {
+			if _, _, pair := cutYAMLPair(val); pair && (strings.Contains(val, ": ") || strings.HasSuffix(val, ":")) {
+				return nil, false
+			}
+			if strings.Contains(val, " #") {
+				return nil, false
+			}
+		}
+		items = append(items, unquote(val))
+	}
+	return items, len(items) > 0
 }
 
 func parseBlockMapping(lines []string) map[string]string {
@@ -542,6 +592,13 @@ func SerializeConcept(c *Concept) string {
 		v := c.Extra[k]
 		safeKey := safeYAMLKey(k)
 		if c.extraBlocks[k] {
+			if items, ok := v.([]any); ok && allStrings(items) {
+				fmt.Fprintf(&sb, "%s:\n", safeKey)
+				for _, item := range items {
+					fmt.Fprintf(&sb, "  - %s\n", blockListItem(item.(string)))
+				}
+				continue
+			}
 			if lines, ok := v.([]string); ok {
 				fmt.Fprintf(&sb, "%s:\n", safeKey)
 				for _, line := range lines {
@@ -569,4 +626,23 @@ func SerializeConcept(c *Concept) string {
 	sb.WriteString("\n")
 
 	return sb.String()
+}
+
+func allStrings(items []any) bool {
+	for _, item := range items {
+		if _, ok := item.(string); !ok {
+			return false
+		}
+	}
+	return len(items) > 0
+}
+
+// blockListItem writes one block list item so it reads back as the same
+// string: plain when that is unambiguous, JSON-quoted otherwise.
+func blockListItem(s string) string {
+	if s != "" && s == strings.TrimSpace(s) && !strings.ContainsAny(s, "\n\r\"'#:{}[],&*!|>%@`") && !strings.HasPrefix(s, "-") && !strings.HasPrefix(s, "?") {
+		return s
+	}
+	encoded, _ := json.Marshal(s)
+	return string(encoded)
 }
