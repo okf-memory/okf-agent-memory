@@ -330,6 +330,8 @@ okf hub pull [bundle-path] [-hub <url>] [-auth-token <token>] [-password <pass>]
 ##### D. `sync`
 Performs a full two-way synchronization cycle (Pull + Push). If an HTTP 409 conflict occurs (concurrent updates), the 3-way reconcile engine automatically fast-forwards disjoint changes or preserves conflicting files locally as `<file>.conflict-local.md` without data loss.
 
+Bookkeeping files are merged semantically instead of colliding: `log.md` entries are unioned, and each `index.md` is merged per listing (one `* [Title](file.md)` line per concept), so devices that add, update, or remove different concepts in the same folder converge cleanly. An index only falls back to a `.conflict-local.md` copy when both sides edited its non-listing text (headings or prose) differently; when both edited the same listing, the remote listing wins.
+
 ```bash
 okf hub sync [bundle-path] [-hub <url>] [-auth-token <token>] [-password <pass>] [-secret-key <key>] [-message <msg>]
 ```

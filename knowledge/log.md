@@ -1,3 +1,8 @@
+## 2026-10-14
+* **Update**: Linked `architecture/semantic-bookkeeping-merge.md` to `architecture/zero-knowledge-vault-sync.md` (Extends the 3-way reconcile so bookkeeping files merge semantically instead of colliding).
+* **Update**: Linked `architecture/zero-knowledge-vault-sync.md` to `architecture/semantic-bookkeeping-merge.md` (How log.md and index.md collisions are merged during sync).
+* **Creation**: Documented concept `architecture/semantic-bookkeeping-merge.md` (Semantic Merge of Bookkeeping Files During Hub Sync).
+
 ## 2026-10-12
 * **Update**: Linked `convention/release-procedure.md` to `architecture/starter-pack-retirement.md` (Governs the exclusion of standalone starter-pack archives from release assets).
 * **Creation**: Documented concept `architecture/starter-pack-retirement.md` (Retirement of Standalone Starter-Pack Distribution Archives).
