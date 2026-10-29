@@ -3,7 +3,7 @@ type: Decision
 title: "OKF Registry Client, Dependency Locking, and Multi-Scope Vendor Layering"
 description: "Decentralized package registry client, zero-dependency okf.lock manifest, multi-scope priority layering, and hermetic @ cross-scope URI routing."
 tags: [registry, vendor, lockfile, multi-scope, layering, pull]
-generated: { by: agent/cli, at: "2026-10-26T13:27:54Z" }
+generated: { by: agent/mcp, at: "2026-10-29T12:28:54Z" }
 status: stable
 ---
 
@@ -50,7 +50,8 @@ flowchart TD
 | **`user`** | `user:guidelines/style.md` | `okf://user/guidelines/style` | `~/.okf/` | **50** | Personal developer preferences and cross-project notes. Strictly shadows system layer. |
 | **`system`** | `system:corp/policies.md` | `okf://system/corp/policies` | `/etc/okf/` | **10** | Machine-level and enterprise compliance standards. |
 
-* **Layer-Filtered Search (`--scope`)**: `okf search` supports `--scope <all|project|bundle|vendor|user|system>` (default: `all`).
+* **Layer-Filtered Search (`--scope`)**: `okf search` supports `--scope <all|project|vendor|user|system>` (default: `all`).
+* **Bundle Scope Isolation (`scopes` in root `index.md`)**: A bundle's root `index.md` frontmatter may declare an explicit `scopes` list (e.g. `scopes: [project, vendor]`) to restrict which memory layers are active for that workspace. Omitting `scopes` enables all four canonical scopes (`project`, `vendor`, `user`, `system`). An empty `scopes` declaration (`scopes: []` or `scopes:`) or any non-canonical value fails bundle loading and validation immediately (fail-closed). Disabled scopes are excluded from `--scope all` searches and bare-ID `show` fallback, and explicit queries targeting a disabled scope (`--scope user`, `okf show user:...`) are rejected with an error.
 
 ---
 

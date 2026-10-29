@@ -30,6 +30,8 @@ func captureOutput(f func()) string {
 
 func TestSearch_VendorLayeringAndShadowing(t *testing.T) {
 	workDir := t.TempDir()
+	t.Setenv("OKF_USER_DIR", filepath.Join(workDir, "user"))
+	t.Setenv("OKF_SYSTEM_DIR", filepath.Join(workDir, "system"))
 	origDir, _ := os.Getwd()
 	if err := os.Chdir(workDir); err != nil {
 		t.Fatal(err)
@@ -290,16 +292,14 @@ func TestSearch_AllScopeCombinationsAndLayering(t *testing.T) {
 	}
 
 	// -------------------------------------------------------------------------
-	// A. Scope: project (and alias bundle)
+	// A. Scope: project
 	// -------------------------------------------------------------------------
-	for _, sc := range []string{"project", "bundle"} {
-		res := runSearchJSON("Only", "--scope", sc)
-		if len(res) != 1 {
-			t.Fatalf("--scope %s for 'Only': expected 1 result, got %d", sc, len(res))
-		}
-		if res[0].ConceptID != "decisions/proj-only" || res[0].Scope != okf.ScopeProject || res[0].Priority != okf.PriorityProject {
-			t.Errorf("--scope %s: unexpected result: %+v", sc, res[0])
-		}
+	res := runSearchJSON("Only", "--scope", "project")
+	if len(res) != 1 {
+		t.Fatalf("--scope project for 'Only': expected 1 result, got %d", len(res))
+	}
+	if res[0].ConceptID != "decisions/proj-only" || res[0].Scope != okf.ScopeProject || res[0].Priority != okf.PriorityProject {
+		t.Errorf("--scope project: unexpected result: %+v", res[0])
 	}
 
 	// -------------------------------------------------------------------------

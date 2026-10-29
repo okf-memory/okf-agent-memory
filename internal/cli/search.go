@@ -30,7 +30,7 @@ Arguments:
   [bundle]               Path to OKF bundle directory (default: 'knowledge' or '.')
 
 Flags:
-  --scope <layer>        Memory layer to search: all, project, bundle, vendor, user, system (default: all)
+  --scope <layer>        Memory layer to search: all, project, vendor, user, system (default: all)
   --for-path <path>      Discover concepts governing a specific file path via code_refs
   --filter <expr>        Filter by frontmatter key-value predicates (e.g. 'type=Decision', 'verified.by=human')
   --stale-within <dur>   Filter concepts becoming stale within relative duration (e.g. '14d', '2w', '3m')
@@ -83,7 +83,7 @@ func cmdSearch(args []string) {
 	}
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
 	limit := fs.Int("limit", 10, "Maximum number of search results")
-	scopeFlag := fs.String("scope", "all", "Memory layer to search: all, project, bundle, vendor, user, system")
+	scopeFlag := fs.String("scope", "all", "Memory layer to search: all, project, vendor, user, system")
 	forPath := fs.String("for-path", "", "Filter concepts governing a specific file path via code_refs")
 	filter := fs.String("filter", "", "Filter concepts by frontmatter key-value predicates")
 	staleWithinStr := fs.String("stale-within", "", "Filter concepts becoming stale within relative duration")
@@ -110,9 +110,9 @@ func cmdSearch(args []string) {
 
 	targetScope := strings.ToLower(strings.TrimSpace(*scopeFlag))
 	switch targetScope {
-	case "all", "project", "bundle", "vendor", "user", "system":
+	case "all", "project", "vendor", "user", "system":
 	default:
-		fmt.Fprintf(os.Stderr, "Error: invalid --scope '%s' (allowed: all, project, bundle, vendor, user, system)\n", *scopeFlag)
+		fmt.Fprintf(os.Stderr, "Error: invalid --scope '%s' (allowed: all, project, vendor, user, system)\n", *scopeFlag)
 		exitFunc(1)
 		return
 	}
@@ -180,7 +180,7 @@ func cmdSearch(args []string) {
 		SearchOpts: searchOpts,
 	})
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "search error") {
+		if strings.HasPrefix(err.Error(), "search error") || strings.Contains(err.Error(), "disabled by bundle configuration") {
 			fmt.Fprintf(os.Stderr, "Search error: %v\n", err)
 			exitFunc(1)
 			return

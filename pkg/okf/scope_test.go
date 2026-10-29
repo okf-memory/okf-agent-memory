@@ -327,3 +327,159 @@ func TestSearchLayered_VendorCompositeIDF(t *testing.T) {
 			resNext[len(resNext)-1].ConceptID)
 	}
 }
+
+func TestIndexFrontmatterScopes_ValidationAndEnforcement(t *testing.T) {
+	// 1. Reject empty or invalid scopes in root index.md
+	invalidCases := []struct {
+		name      string
+		indexYAML string
+		wantErr   string
+	}{
+		{
+			name:      "empty flow list",
+			indexYAML: "---\nokf_version: \"0.2\"\nscopes: []\n---\n# Index\n",
+			wantErr:   "scopes list cannot be empty",
+		},
+		{
+			name:      "empty scalar",
+			indexYAML: "---\nokf_version: \"0.2\"\nscopes:\n---\n# Index\n",
+			wantErr:   "scopes list cannot be empty",
+		},
+		{
+			name:      "unknown scope value",
+			indexYAML: "---\nokf_version: \"0.2\"\nscopes: [project, foo]\n---\n# Index\n",
+			wantErr:   "invalid scope \"foo\" in index.md",
+		},
+		{
+			name:      "disallowed 'all' in index.md scopes",
+			indexYAML: "---\nokf_version: \"0.2\"\nscopes: [all]\n---\n# Index\n",
+			wantErr:   "invalid scope \"all\" in index.md",
+		},
+		{
+			name:      "removed 'bundle' alias in index.md scopes",
+			indexYAML: "---\nokf_version: \"0.2\"\nscopes: [bundle]\n---\n# Index\n",
+			wantErr:   "invalid scope \"bundle\" in index.md",
+		},
+		{
+			name:      "empty item in flow list",
+			indexYAML: "---\nokf_version: \"0.2\"\nscopes: [project, ]\n---\n# Index\n",
+			wantErr:   "empty item in scopes list",
+		},
+	}
+
+	for _, tc := range invalidCases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "index.md"), []byte(tc.indexYAML), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := okf.LoadBundle(dir)
+			if err == nil {
+				t.Fatalf("expected LoadBundle to fail for %s, but succeeded", tc.name)
+			}
+			if !containsSubstr(err.Error(), tc.wantErr) {
+				t.Errorf("expected error containing %q, got: %v", tc.wantErr, err)
+			}
+		})
+	}
+
+	// 2. Enforce scopes restriction in SearchLayered and ResolveScopedConcept
+	root := t.TempDir()
+	projDir := filepath.Join(root, "project")
+	vendorRoot := filepath.Join(root, "vendor")
+	userDir := filepath.Join(root, "user")
+	sysDir := filepath.Join(root, "system")
+
+	for _, d := range []string{projDir, filepath.Join(vendorRoot, "acme"), userDir, sysDir} {
+		if err := os.MkdirAll(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "index.md"), []byte("---\nokf_version: \"0.2\"\n---\n# Index\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Restrict project bundle to [project, vendor] only (excluding user and system)
+	restrictedIndex := "---\nokf_version: \"0.2\"\nscopes:\n  - project\n  - vendor\n---\n# Restricted Project\n"
+	if err := os.WriteFile(filepath.Join(projDir, "index.md"), []byte(restrictedIndex), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	writeNote := func(dir, name, title string) {
+		content := "---\ntype: Fact\ntitle: " + title + "\ndescription: Shared keyword alpha\n---\n# " + title + "\nShared keyword alpha\n"
+		if err := os.WriteFile(filepath.Join(dir, name+".md"), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeNote(projDir, "proj-note", "Project Note")
+	writeNote(filepath.Join(vendorRoot, "acme"), "vendor-note", "Vendor Note")
+	writeNote(userDir, "user-note", "Secret Personal Note")
+	writeNote(sysDir, "sys-note", "System Note")
+
+	// A. Search with scope="all" must only return project and vendor results (user & system excluded)
+	results, err := okf.SearchLayered(okf.LayeredSearchOptions{
+		BundleDir:  projDir,
+		VendorRoot: vendorRoot,
+		UserDir:    userDir,
+		SystemDir:  sysDir,
+		Scope:      "all",
+		SearchOpts: okf.SearchOptions{Query: "alpha", Limit: 10},
+	})
+	if err != nil {
+		t.Fatalf("SearchLayered(all) failed: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results (project + vendor), got %d: %+v", len(results), results)
+	}
+	for _, r := range results {
+		if r.Scope == okf.ScopeUser || r.Scope == okf.ScopeSystem {
+			t.Errorf("unexpected result from disabled scope %s: %+v", r.Scope, r)
+		}
+	}
+
+	// B. Explicit search on disabled scope ("user" or "system") must return an error
+	for _, blocked := range []string{"user", "system"} {
+		_, err := okf.SearchLayered(okf.LayeredSearchOptions{
+			BundleDir:  projDir,
+			VendorRoot: vendorRoot,
+			UserDir:    userDir,
+			SystemDir:  sysDir,
+			Scope:      blocked,
+			SearchOpts: okf.SearchOptions{Query: "alpha", Limit: 10},
+		})
+		if err == nil || !containsSubstr(err.Error(), "disabled by bundle configuration") {
+			t.Errorf("expected explicit search for scope %q to be blocked, got: %v", blocked, err)
+		}
+	}
+
+	// C. ResolveScopedConcept with bare ID in user scope must NOT fall back to user/system when disabled
+	if _, err := okf.ResolveScopedConcept("user-note", projDir, vendorRoot, userDir, sysDir); err == nil {
+		t.Errorf("expected bare ID 'user-note' to fail when user scope is disabled")
+	}
+
+	// D. ResolveScopedConcept with explicit 'user:user-note' or 'okf://user/user-note' must fail with disabled error
+	for _, ref := range []string{"user:user-note", "okf://user/user-note", "system:sys-note"} {
+		_, err := okf.ResolveScopedConcept(ref, projDir, vendorRoot, userDir, sysDir)
+		if err == nil || !containsSubstr(err.Error(), "disabled by bundle configuration") {
+			t.Errorf("expected explicit show %q to be blocked by bundle configuration, got: %v", ref, err)
+		}
+	}
+
+	// E. Allowed scopes (project and @acme/vendor-note) still resolve normally
+	if res, err := okf.ResolveScopedConcept("proj-note", projDir, vendorRoot, userDir, sysDir); err != nil || res.Scope != okf.ScopeProject {
+		t.Errorf("expected proj-note to resolve in project scope, got res=%+v err=%v", res, err)
+	}
+	if res, err := okf.ResolveScopedConcept("@acme/vendor-note", projDir, vendorRoot, userDir, sysDir); err != nil || res.Scope != okf.ScopeVendor {
+		t.Errorf("expected @acme/vendor-note to resolve in vendor scope, got res=%+v err=%v", res, err)
+	}
+}
+
+func containsSubstr(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}

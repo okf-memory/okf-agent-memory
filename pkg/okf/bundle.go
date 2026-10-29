@@ -24,6 +24,7 @@ var linkRegex = regexp.MustCompile(`\]\(([^)\s]+\.md)(?:#[^)]*)?\)`)
 type Bundle struct {
 	RootPath     string              `json:"root_path"`
 	DeclaredVer  string              `json:"declared_version,omitempty"` // e.g. "0.2" from root index.md
+	Scopes       []Scope             `json:"scopes,omitempty"`           // optional allowed memory scopes from root index.md
 	Concepts     map[string]*Concept `json:"concepts"`                   // concept ID -> Concept
 	Indexes      map[string]string   `json:"indexes"`                    // relPath -> raw content
 	LogContent   string              `json:"log_content,omitempty"`
@@ -31,6 +32,20 @@ type Bundle struct {
 	InboundGraph map[string][]string `json:"inbound_graph"` // concept ID -> inbound concept IDs
 	BrokenLinks  []BrokenLink        `json:"broken_links,omitempty"`
 	Orphans      []string            `json:"orphans,omitempty"`
+}
+
+// AllowedScope reports whether the given scope is permitted by this bundle's configuration.
+// If no scopes were explicitly configured in root index.md, all scopes are allowed.
+func (b *Bundle) AllowedScope(s Scope) bool {
+	if b == nil || len(b.Scopes) == 0 {
+		return true
+	}
+	for _, allowed := range b.Scopes {
+		if allowed == s {
+			return true
+		}
+	}
+	return false
 }
 
 // BrokenLink records a link from a concept to a non-existent target or reserved file.
@@ -169,6 +184,115 @@ func ensureRootWithinParent(root, realRoot string) error {
 	return nil
 }
 
+// parseRootIndexFrontmatter extracts okf_version and optional scopes configuration from root index.md.
+// If 'scopes' is present, it must be a non-empty list containing only canonical scopes (project, vendor, user, system).
+func parseRootIndexFrontmatter(fmText string) (string, []Scope, error) {
+	type fmBlock struct {
+		inline string
+		lines  []string
+	}
+	blocks := make(map[string]*fmBlock)
+	var curBlock *fmBlock
+
+	for _, line := range strings.Split(fmText, "\n") {
+		line = strings.TrimRight(line, "\r")
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") || (curBlock != nil && strings.HasPrefix(line, "-")) {
+			if curBlock != nil {
+				curBlock.lines = append(curBlock.lines, line)
+			}
+			continue
+		}
+		before, after, ok := cutYAMLPair(line)
+		if !ok {
+			continue
+		}
+		key := unquote(before)
+		val := strings.TrimSpace(after)
+		curBlock = &fmBlock{inline: val}
+		blocks[key] = curBlock
+	}
+
+	var declaredVer string
+	if verBlock, ok := blocks["okf_version"]; ok {
+		declaredVer = unquote(verBlock.inline)
+	}
+
+	scopesBlock, hasScopes := blocks["scopes"]
+	if !hasScopes {
+		return declaredVer, nil, nil
+	}
+
+	rawItems, err := parseStrictScopesList(scopesBlock.inline, scopesBlock.lines)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(rawItems) == 0 {
+		return "", nil, fmt.Errorf("invalid scopes in index.md: scopes list cannot be empty")
+	}
+
+	var scopes []Scope
+	seen := make(map[Scope]bool)
+	for _, raw := range rawItems {
+		norm := Scope(strings.ToLower(strings.TrimSpace(raw)))
+		switch norm {
+		case ScopeProject, ScopeVendor, ScopeUser, ScopeSystem:
+			if !seen[norm] {
+				seen[norm] = true
+				scopes = append(scopes, norm)
+			}
+		default:
+			return "", nil, fmt.Errorf("invalid scope %q in index.md (allowed: project, vendor, user, system)", raw)
+		}
+	}
+	return declaredVer, scopes, nil
+}
+
+func parseStrictScopesList(inline string, blockLines []string) ([]string, error) {
+	var out []string
+	s := strings.TrimSpace(inline)
+	if s != "" {
+		if strings.HasPrefix(s, "[") {
+			if !strings.HasSuffix(s, "]") {
+				return nil, fmt.Errorf("invalid scopes in index.md: malformed flow list %q", inline)
+			}
+			inner := strings.TrimSpace(s[1 : len(s)-1])
+			if inner == "" {
+				return nil, nil
+			}
+			for _, item := range splitFlowItems(inner) {
+				it := unquote(item)
+				if it == "" {
+					return nil, fmt.Errorf("invalid scopes in index.md: empty item in scopes list")
+				}
+				out = append(out, it)
+			}
+			return out, nil
+		}
+		return []string{unquote(s)}, nil
+	}
+
+	for _, line := range blockLines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		after, ok := strings.CutPrefix(trimmed, "-")
+		if !ok {
+			return nil, fmt.Errorf("invalid scopes in index.md: unexpected block line %q", trimmed)
+		}
+		val := unquote(strings.TrimSpace(after))
+		if val == "" {
+			return nil, fmt.Errorf("invalid scopes in index.md: empty item in scopes list")
+		}
+		out = append(out, val)
+	}
+	return out, nil
+}
+
 func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 	walkRoot, bundlePath, err := resolveBundleRoot(root, trustedRoot)
 	if err != nil {
@@ -249,12 +373,12 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 			if rel == "index.md" {
 				fm, _, hasFM := ExtractFrontmatter(content)
 				if hasFM {
-					for _, line := range strings.Split(fm, "\n") {
-						idx := strings.Index(line, ":")
-						if idx != -1 && strings.TrimSpace(line[:idx]) == "okf_version" {
-							b.DeclaredVer = unquote(line[idx+1:])
-						}
+					ver, scopes, err := parseRootIndexFrontmatter(fm)
+					if err != nil {
+						return err
 					}
+					b.DeclaredVer = ver
+					b.Scopes = scopes
 				}
 			}
 			return nil

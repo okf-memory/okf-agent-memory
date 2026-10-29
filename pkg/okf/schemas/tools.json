@@ -11,8 +11,8 @@
         },
         "scope": {
           "type": "string",
-          "enum": ["all", "project", "bundle", "vendor", "user", "system"],
-          "description": "Optional memory layer to search: all, project, bundle, vendor, user, system (default 'all')."
+          "enum": ["all", "project", "vendor", "user", "system"],
+          "description": "Optional memory layer to search: all, project, vendor, user, system (default 'all')."
         },
         "for_path": {
           "type": "string",

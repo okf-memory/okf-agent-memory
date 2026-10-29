@@ -1,6 +1,7 @@
 package okf
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -203,8 +204,16 @@ type LayeredSearchOptions struct {
 	VendorRoot string
 	UserDir    string
 	SystemDir  string
-	Scope      string // "all", "project", "bundle", "vendor", "user", "system"
+	Scope      string // "all", "project", "vendor", "user", "system"
 	SearchOpts SearchOptions
+}
+
+func formatAllowedScopes(scopes []Scope) string {
+	parts := make([]string, len(scopes))
+	for i, s := range scopes {
+		parts[i] = string(s)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // SearchLayered executes search across multiple memory layers (Project, Vendor, User, System)
@@ -215,48 +224,57 @@ func SearchLayered(opts LayeredSearchOptions) ([]SearchResult, error) {
 		targetScope = "all"
 	}
 	switch targetScope {
-	case "all", "project", "bundle", "vendor", "user", "system":
+	case "all", "project", "vendor", "user", "system":
 	default:
-		return nil, fmt.Errorf("invalid scope %q (allowed: all, project, bundle, vendor, user, system)", opts.Scope)
+		return nil, fmt.Errorf("invalid scope %q (allowed: all, project, vendor, user, system)", opts.Scope)
 	}
 
-	searchProject := targetScope == "all" || targetScope == "project" || targetScope == "bundle"
-	searchVendor := targetScope == "all" || targetScope == "vendor"
-	searchUser := targetScope == "all" || targetScope == "user"
-	searchSystem := targetScope == "all" || targetScope == "system"
+	bDir := opts.BundleDir
+	if bDir == "" {
+		bDir = "knowledge"
+		if info, err := os.Stat("knowledge"); err != nil || !info.IsDir() {
+			bDir = "."
+		}
+	}
+
+	var projBundle *Bundle
+	if _, statErr := os.Stat(bDir); statErr == nil {
+		b, err := LoadBundle(bDir)
+		if err != nil {
+			return nil, fmt.Errorf("error loading bundle: %w", err)
+		}
+		projBundle = b
+	} else if targetScope == "project" || !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("error loading bundle: %w", statErr)
+	}
+
+	if targetScope != "all" && projBundle != nil && !projBundle.AllowedScope(Scope(targetScope)) {
+		return nil, fmt.Errorf("scope %q is disabled by bundle configuration in index.md (allowed: %s)", targetScope, formatAllowedScopes(projBundle.Scopes))
+	}
+
+	searchProject := (targetScope == "all" || targetScope == "project") && projBundle.AllowedScope(ScopeProject)
+	searchVendor := (targetScope == "all" || targetScope == "vendor") && projBundle.AllowedScope(ScopeVendor)
+	searchUser := (targetScope == "all" || targetScope == "user") && projBundle.AllowedScope(ScopeUser)
+	searchSystem := (targetScope == "all" || targetScope == "system") && projBundle.AllowedScope(ScopeSystem)
 
 	var results []SearchResult
 	seenConcepts := make(map[string]bool)
 
 	// 1. Search Project Layer (Priority 100)
-	if searchProject {
-		bDir := opts.BundleDir
-		if bDir == "" {
-			bDir = "knowledge"
-			if info, err := os.Stat("knowledge"); err != nil || !info.IsDir() {
-				bDir = "."
-			}
-		}
-		b, err := LoadBundle(bDir)
+	if searchProject && projBundle != nil {
+		pResults, err := projBundle.SearchAdvanced(opts.SearchOpts)
 		if err != nil {
-			if targetScope != "all" {
-				return nil, fmt.Errorf("error loading bundle: %w", err)
-			}
-		} else {
-			pResults, err := b.SearchAdvanced(opts.SearchOpts)
-			if err != nil {
-				return nil, fmt.Errorf("search error: %w", err)
-			}
-			for i := range pResults {
-				pResults[i].Scope = ScopeProject
-				pResults[i].Priority = PriorityProject
-				pResults[i].Origin = "local"
-				seenConcepts[pResults[i].ConceptID] = true
-				results = append(results, pResults[i])
-			}
-			for id := range b.Concepts {
-				seenConcepts[id] = true
-			}
+			return nil, fmt.Errorf("search error: %w", err)
+		}
+		for i := range pResults {
+			pResults[i].Scope = ScopeProject
+			pResults[i].Priority = PriorityProject
+			pResults[i].Origin = "local"
+			seenConcepts[pResults[i].ConceptID] = true
+			results = append(results, pResults[i])
+		}
+		for id := range projBundle.Concepts {
+			seenConcepts[id] = true
 		}
 	}
 
@@ -460,14 +478,40 @@ func ResolveScopedConcept(rawID, defaultBundleDir, vendorRoot, userDir, systemDi
 	}
 
 	explicitScope := strings.HasPrefix(normID, "okf://")
+	projectDir := bundleDir
+
+	var projBundle *Bundle
+	if _, statErr := os.Stat(projectDir); statErr == nil {
+		b, err := LoadBundle(projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("error loading bundle from %q: %w", projectDir, err)
+		}
+		projBundle = b
+	} else if (explicitScope && showScope == ScopeProject) || !errors.Is(statErr, os.ErrNotExist) {
+		return nil, fmt.Errorf("error loading bundle from %q: %w", projectDir, statErr)
+	}
+
+	if explicitScope && projBundle != nil && !projBundle.AllowedScope(showScope) {
+		return nil, fmt.Errorf("scope %q is disabled by bundle configuration in index.md (allowed: %s)", showScope, formatAllowedScopes(projBundle.Scopes))
+	}
+
 	scopes := []Scope{showScope}
 	if !explicitScope {
-		scopes = []Scope{ScopeProject, ScopeUser, ScopeSystem}
+		allFallback := []Scope{ScopeProject, ScopeUser, ScopeSystem}
+		scopes = make([]Scope, 0, len(allFallback))
+		for _, sc := range allFallback {
+			if projBundle.AllowedScope(sc) {
+				scopes = append(scopes, sc)
+			}
+		}
 	}
-	projectDir := bundleDir
+
 	for _, showScope := range scopes {
 		bundleDir := projectDir
+		var b *Bundle
 		switch showScope {
+		case ScopeProject:
+			b = projBundle
 		case ScopeVendor:
 			if vendorRoot == "" {
 				vendorRoot = filepath.Join(".okf", "vendor")
@@ -491,18 +535,21 @@ func ResolveScopedConcept(rawID, defaultBundleDir, vendorRoot, userDir, systemDi
 			}
 		}
 
-		load := LoadBundle
-		if showScope == ScopeUser || showScope == ScopeSystem {
-			load = loadTrustedBundle
-		}
-		if !explicitScope {
-			if _, err := os.Stat(bundleDir); os.IsNotExist(err) {
-				continue
+		if b == nil {
+			load := LoadBundle
+			if showScope == ScopeUser || showScope == ScopeSystem {
+				load = loadTrustedBundle
 			}
-		}
-		b, err := load(bundleDir)
-		if err != nil {
-			return nil, fmt.Errorf("error loading bundle from %q: %w", bundleDir, err)
+			if !explicitScope {
+				if _, err := os.Stat(bundleDir); os.IsNotExist(err) {
+					continue
+				}
+			}
+			var err error
+			b, err = load(bundleDir)
+			if err != nil {
+				return nil, fmt.Errorf("error loading bundle from %q: %w", bundleDir, err)
+			}
 		}
 
 		c, ok := b.Concepts[conceptID]
