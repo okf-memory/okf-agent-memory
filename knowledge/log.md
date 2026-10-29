@@ -1,4 +1,6 @@
 ## 2026-10-29
+* **Update**: Prepared draft release notes for v0.8.0 (declarative bundle scope isolation via `scopes` in root `index.md` frontmatter, fail-closed scope validation, and removal of the legacy `--scope bundle` alias).
+* **Update**: Updated concept `roadmap/milestones.md`.
 * **Update**: Updated concept `architecture/registry-and-vendor-layering.md`.
 
 ## 2026-10-28

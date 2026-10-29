@@ -212,7 +212,7 @@ flowchart TD
 # Search strictly within vendor packages
 ./bin/okf search "routing" --scope vendor
 
-# Search strictly within local project memory (or use alias --scope bundle)
+# Search strictly within local project memory
 ./bin/okf search "architecture" --scope project
 
 # Search user or system layers
@@ -220,11 +220,26 @@ flowchart TD
 ./bin/okf search "compliance" --scope system
 
 # Inspect concepts across scopes
-./bin/okf show decisions/auth                        # Local project concept
+./bin/okf show decisions/auth                       # Local project concept
 ./bin/okf show @nextjs-15/decisions/routing         # Vendor package concept
 ./bin/okf show user:guidelines/style                # Personal user concept
 ./bin/okf show system:corp/policies                 # System compliance concept
 ```
+
+#### Bundle Scope Isolation (`scopes` in `knowledge/index.md`)
+
+By default, all four scopes (`project`, `vendor`, `user`, `system`) are active. To isolate a project (e.g. preventing agents in a client or open-source repository from accessing personal `~/.okf/` notes), declare an explicit `scopes` list in the root `knowledge/index.md` frontmatter:
+
+```yaml
+---
+okf_version: "0.2"
+scopes: [project, vendor]
+---
+```
+
+* Only the listed scopes are searched under `--scope all` or bare-ID `okf show` fallback.
+* Explicit queries targeting a disabled scope (e.g. `okf search --scope user` or `okf show user:secret`) are rejected with an error.
+* Empty (`scopes: []`) or non-canonical scope names fail bundle loading and validation immediately (fail-closed).
 
 ### 4. Bundle Quality Scorecards (OpenSSF-Style)
 
@@ -303,7 +318,7 @@ okf-agent-memory/
 │   ├── spec/               # OKF convention v0.1, compatibility analysis & architecture RFCs
 │   ├── security/           # Data governance, secret prevention & adversarial security audits
 │   ├── project/            # Project roadmap, release playbook & multi-agent testing
-│   └── releases/           # Versioned release notes & changelog archive (v0.1.0 - v0.7.2)
+│   └── releases/           # Versioned release notes & changelog archive (v0.1.0 - v0.8.0)
 ├── examples/               # Domain-neutral reference DMAA projects (AGENTS.md + OKF v0.2 knowledge/)
 │   ├── books/              # Literature & editorial analysis repository
 │   ├── coaching/           # Executive coaching & client session repository

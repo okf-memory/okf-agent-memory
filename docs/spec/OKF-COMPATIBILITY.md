@@ -31,7 +31,7 @@ The conclusion of this analysis is that the convention is **100% compliant with 
 | **Trust Signals** | § 5.2 | `generated: { by, at }` vs `verified: [{ by, at }]`. Human verification drives trust tier. | Agents MUST NOT mark generated/inferred content as human-verified (§ 11). | **Full Match** |
 | **Lifecycle** | § 5.3 | `status: draft\|stable\|deprecated`, `stale_after: YYYY-MM-DD`. | Recommends `status` and `stale_after` without premature deletion of old context (§ 14). | **Full Match** |
 | **Links & Graph** | § 6 | Relative or absolute markdown links. Link meaning resides in surrounding prose. | Prefers relative links; treats relationships as part of the knowledge graph (§ 15). | **Full Match** |
-| **Index & Navigation** | § 8 | Root `index.md` may declare `okf_version: "0.2"`. Sub-indexes carry no frontmatter. | Uses indexes for progressive disclosure to avoid context bloat (§ 16). | **Full Match** |
+| **Index & Navigation** | § 8, § 12 | Root `index.md` may declare `okf_version: "0.2"` and bundle-level keys (such as `scopes`). Sub-indexes carry no frontmatter. | Uses indexes for progressive disclosure and optional scope isolation (`scopes: [project, vendor]`) (§ 16). | **Full Match** |
 | **Change History** | § 9 | `log.md` with ISO 8601 `## YYYY-MM-DD` headings, newest first. | Adopts dated `log.md` for recording significant additions and updates (§ 4). | **Full Match** |
 | **Attested Computations**| § 10 | Sanctioned executable computations that agents may invoke but not modify. | Tooling and convention layer support `Attested Computation` concepts (§ 3). | **Full Match** |
 

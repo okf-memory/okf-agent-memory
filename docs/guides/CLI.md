@@ -66,7 +66,7 @@ Searches concepts using fast in-memory BM25 scoring across titles, descriptions,
 
 ```bash
 okf search [query] [bundle-path] \
-  [--scope <all|project|bundle|vendor|user|system>] \
+  [--scope <all|project|vendor|user|system>] \
   [--for-path <file-or-dir>] \
   [--filter <predicate>] \
   [--stale-within <duration>] \
@@ -80,7 +80,7 @@ okf search [query] [bundle-path] \
 * **Flags**:
   * `--scope <layer>` (default: `all`): Filter search to a specific memory layer:
     * `all`: Queries across Project, Vendor, User, and System layers with hierarchical shadowing and priority ranking.
-    * `project` (alias `bundle`): Searches only the local project memory (`./knowledge/`).
+    * `project`: Searches only the local project memory (`./knowledge/`).
     * `vendor`: Searches only installed external vendor bundles in `.okf/vendor/`.
     * `user`: Searches only personal developer memory in `~/.okf/` (or `$OKF_USER_DIR`).
     * `system`: Searches only enterprise/system memory in `/etc/okf/` (or `$OKF_SYSTEM_DIR`).
@@ -102,6 +102,7 @@ When searching with `--scope all`:
 1. **Precedence Ranking**: Results are grouped by layer priority before BM25 score:
    - **`project`** (Priority 100) > **`vendor`** (Priority 70) > **`user`** (Priority 50) > **`system`** (Priority 10).
 2. **Shadowing**: A concept in a higher layer strictly shadows identical concept IDs in lower layers (e.g. local `decisions/auth` overrides `@bundle/decisions/auth` or `user:decisions/auth`).
+3. **Bundle Scope Isolation (`scopes` in `knowledge/index.md`)**: A bundle's root `index.md` frontmatter may declare `scopes: [project, vendor]` (or any non-empty subset of `project`, `vendor`, `user`, `system`) to restrict which memory layers are active for that workspace. Disabled scopes are skipped under `--scope all` and bare-ID `okf show` fallback, and rejected with an error if queried explicitly. Empty (`scopes: []`) or non-canonical values fail validation immediately.
 
 #### Governance Badges & Authority Ranking
 

@@ -4,7 +4,7 @@ title: "Project Roadmap & Development Milestones"
 description: "Phased implementation roadmap from specification validation to Go library, CLI tooling, cross-agent testing, and quality scorecards."
 resource: "https://github.com/okf-memory/okf-agent-memory"
 tags: [roadmap, milestones, phases, planning]
-generated: { by: agent/mcp, at: "2026-10-20T12:05:15Z" }
+generated: { by: agent/mcp, at: "2026-10-29T12:44:13Z" }
 status: stable
 sources:
   - resource: ../../docs/project/ROADMAP.md
@@ -39,7 +39,7 @@ The project progresses through 21 structured phases designed to take OKF Agent M
 | **Phase 16**| **Strict MCP Conformance & Storage Hardening** | **Completed** | Object `outputSchema` and `structuredContent` MCP specification conformance (OpenCode, Pi Agent), atomic filesystem writes, index broken link scanning, bidirectional drift validation, and crash consistency test suites. |
 | **Phase 17**| **MCP Boundary Integrity & Security Hardening** | **Completed** | Parameter bounds & DoS limits (`getStringArg`), stdin 4MB streaming limit, memory cache corruption prevention, Unicode zero-width/BiDi protection, frontmatter smuggling defense, directory nesting bounds (`MaxConceptDirectoryDepth = 8`), and cross-platform backslash traversal sanitation. |
 | **Phase 18**| **Cross-Platform Boundary Hardening & Validation Taxonomy** | **Completed** | Cross-platform absolute path evasion protection (`IsAbsPath`), multi-line frontmatter smuggling defense, validate findings taxonomy separation, and Jules security automation. |
-| **Phase 19**| **OKF Registry & Multi-Scope Vendor Layering** | **Completed** | Decentralized registry client (`registry.okf-memory.dev`), zero-dep `okf.lock`, `okf pull`, `okf restore`, `okf vendor`, multi-scope BM25 indexing (`okf://`), streaming directory promotion, and post-install rollback. |
+| **Phase 19**| **OKF Registry & Multi-Scope Vendor Layering** | **Completed** | Decentralized registry client (`registry.okf-memory.dev`), zero-dep `okf.lock`, `okf pull`, `okf restore`, `okf vendor`, multi-scope BM25 indexing (`okf://`), root `index.md` scope isolation (`scopes: [...]`), streaming directory promotion, and post-install rollback. |
 | **Phase 20**| **Explicit Concept Overrides & Upstream Provenance** | **Planned** | Replace implicit path-shadowing with explicit frontmatter `overrides: <target-id|urn>`, cross-scope provenance tracking, DAG override suppression in layered search, and upstream drift warnings on `okf update`. |
 | **Phase 21**| **Bundle Quality Scorecards & Pre-Pull Gating** | **Completed** | Canonical scorecard engine (`pkg/okf/scorecard.go`), 3-pillar scoring (maintenance 35%, stewardship 35%, integrity 30%), CLI gating with atomic rollback (`okf pull --min-score <N>`, `okf restore --min-score <N>`), and registry SSoT integration. |
 
