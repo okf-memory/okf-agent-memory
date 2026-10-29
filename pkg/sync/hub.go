@@ -195,7 +195,7 @@ func HubSync(w io.Writer, op HubOp) error {
 
 	if len(res.Conflicts) > 0 {
 		for _, c := range res.Conflicts {
-			forked := ConflictLocalPath(c.Path)
+			forked := ConflictForkPath(c.Path, c.LocalEntry)
 			_, _ = fmt.Fprintf(w, "⚠️  Collision detected at %s. Local version saved as %s.\n", c.Path, forked)
 		}
 	}

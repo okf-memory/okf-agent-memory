@@ -62,7 +62,7 @@ When a `409 Conflict` occurs during synchronization:
 1. **Disjoint Auto-Merge**: If concurrent clients modified distinct files, the engine performs a fast-forward 3-way merge (`baseTree`, `localTree`, `remoteTree`) without manual interaction.
 2. **CLI Collision Failsafe**: If both clients modified the exact same file incompatibly:
    * The remote version is adopted at `<filename>.md`.
-   * The local conflicting changes are preserved at `<filename>.conflict-local.md`.
+   * The local conflicting changes are preserved at `<filename>.conflict-local-<hash8>.md`, where `<hash8>` is the first 8 hex characters of the local content's plaintext hash. The suffix keeps each conflicting writer's fork distinct, so a later device's conflict cannot overwrite a conflict copy an earlier device already committed.
    * **Guarantee**: Zero data loss under all concurrency conditions.
 
 ---
