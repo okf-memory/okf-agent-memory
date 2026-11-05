@@ -3,7 +3,7 @@ type: Convention
 title: "Contributor Guidelines & PR Standards"
 description: "Engineering standards, zero third-party dependency policy, validation rules, and PR workflow for contributors."
 tags: [contributing, contribute, workflow, standards, pr, pull-request]
-generated: { by: agent/mcp, at: "2026-09-18T08:29:01Z" }
+generated: { by: agent/mcp, at: "2026-11-05T22:08:03Z" }
 status: stable
 sources:
   - resource: ../../CONTRIBUTING.md
@@ -40,7 +40,7 @@ All contributions must adhere to four foundational constraints:
 
 - **Go Version**: Go 1.24+ (or Go 1.26).
 - **Formatting**: Go code must be formatted with standard formatting tools (`gofumpt` or `go fmt`).
-- **Static Analysis**: Code must pass `go vet ./...` without diagnostics.
+- **Static Analysis**: Code must pass `go vet ./...` and `make lint` without diagnostics.
 - **Testing**: Unit tests in `pkg/okf` must maintain complete coverage and pass with `make test`.
 
 ---
@@ -63,7 +63,7 @@ When preparing a Pull Request:
 
 `okf-agent-memory` follows a GitFlow-inspired branching model:
 - **`develop` (Default Branch)**: All active development, feature branches, and external Pull Requests must branch from and target `develop`.
-- **`main` (Production Releases)**: Strictly reserved for tagged production releases (e.g. `v0.1.5`). Direct PRs against `main` are rejected.
+- **`main` (Production Releases)**: Strictly reserved for tagged production releases (e.g. `v0.8.0`). Direct PRs against `main` are rejected.
 
 ---
 
@@ -71,7 +71,7 @@ When preparing a Pull Request:
 
 Before requesting a review or merging into `develop` (or preparing a release to `main`), verify:
 - [ ] `go fmt ./...` produces no diffs.
-- [ ] `go vet ./...` reports zero issues.
+- [ ] `go vet ./...` and `make lint` report zero issues.
 - [ ] `make test` runs with 100% passing unit tests.
 - [ ] `make validate` exits with code 0 (`0 errors, 0 warnings, 0 orphans, 0 broken links`).
 - [ ] Conventional Commit format used for all commit messages.
@@ -82,6 +82,6 @@ Before requesting a review or merging into `develop` (or preparing a release to 
 - [Core Memory Principles & Agent Contract](principles.md): Contributors must follow the core memory principles
 - [Knowledge Lifecycle & Review Workflow](lifecycle.md): PR workflows must integrate the knowledge review lifecycle
 - [5-Layer System Architecture](../architecture/layers.md): Code contributions must adhere to the 5-layer architecture and zero-dependency rule
-- [Automated Security Auditing & Jules Remediation Workflow](security-audit.md): Continuous security audit expectations and integration pipeline
+- [Automated Security Auditing & Defensive Verification Workflow](security-audit.md): Continuous security audit expectations and verification pipeline
 - [Engineering & Coding Best Practices (Clean Code, TDD, DRY)](coding-standards.md): Core coding conventions including TDD, Clean Code, DRY, and idiomatic Go
 - [Release Procedure & Distribution Runbook](release-procedure.md): Release preparation, quality gates, and git tagging procedure

@@ -1,4 +1,8 @@
 ## 2026-11-05
+* **Update**: Updated concept `roadmap/milestones.md`.
+* **Update**: Updated concept `convention/contributing.md`.
+* **Update**: Updated concept `convention/coding-standards.md`.
+* **Update**: Updated concept `convention/security-audit.md`.
 * **Update**: Updated concept `architecture/security-boundaries.md`.
 * **Update**: Updated concept `architecture/zero-knowledge-vault-sync.md`.
 

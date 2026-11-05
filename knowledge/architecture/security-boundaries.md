@@ -2,7 +2,7 @@
 type: Decision
 title: Bundle Isolation and Mutation Security Boundaries
 description: "Defensive security architecture enforcing canonical bundle boundaries, symlink containment, path traversal prevention for local mutations and for untrusted remote hub, sync and registry input, and frontmatter injection defense."
-generated: { by: agent/mcp, at: "2026-11-05T21:57:20Z" }
+generated: { by: agent/mcp, at: "2026-11-05T22:08:00Z" }
 ---
 
 # Bundle Isolation and Mutation Security Boundaries
@@ -79,4 +79,4 @@ To prevent silent Read-Modify-Write (RMW) lost updates when parallel subagents, 
 
 # Related Concepts
 - [MCP Tool Security & Untrusted Agent Input](../convention/mcp-agent-safety.md): Behavioral MCP guidelines complement deterministic boundaries
-- [Automated Security Auditing & Jules Remediation Workflow](../convention/security-audit.md): Proactive adversarial auditing and verification pipeline
+- [Automated Security Auditing & Defensive Verification Workflow](../convention/security-audit.md): Proactive adversarial auditing and verification pipeline

@@ -74,53 +74,31 @@ When conducting an audit, produce the report in the following format:
 
 ---
 
-## 4. Continuous Automated Auditing via Google Jules (Daily Scan)
+## 4. Continuous & Agentic Security Verification
 
-To complement pre-release gates with proactive, continuous discovery, **Google Jules** runs as an autonomous background agent performing daily repository audits.
+To complement pre-release gates with proactive discovery, automated static analysis and adversarial agent reviews run against `develop`:
 
-### Jules Task Prompt Template
+```bash
+# Run gosec and govulncheck security scanners
+make security-audit
+
+# Run full verification pipeline (fmt, vet, lint, security-audit, race-enabled tests, validate-all)
+make check
+```
+
+### Adversarial Audit Prompt Template
 ```markdown
 You are a Go Quality Assurance & Defensive Hardening Specialist for the okf-agent-memory repository.
 
 Target Branch: Always branch off and open pull requests against `develop`.
 
 Task:
-1. Review all recent code modifications in `pkg/okf` and `cmd/okf` against the defensive criteria in `docs/security/SECURITY_AUDIT.md`.
+1. Review all recent code modifications in `pkg/okf`, `pkg/sync`, `pkg/vault`, `pkg/registry`, and `internal/cli` against the defensive criteria in `docs/security/SECURITY_AUDIT.md`.
 2. Verify that defensive boundary invariants hold under unexpected or malformed inputs:
    - Path boundary containment (CWE-22) and symlink resolution (CWE-59) in `pkg/okf/bundle.go` and `pkg/okf/mutate.go`.
-   - MCP tool call argument sanitization and server root confinement in `cmd/okf/mcp.go`.
+   - Concurrent local write serialization (`WithBundleLock`) and optimistic concurrency checks (`ErrConcurrentModification`) in `pkg/okf/lock.go` and `pkg/okf/mutate.go`.
+   - MCP tool call argument sanitization and server root confinement in `pkg/okf/mcp.go`.
    - Resource limits, parsing edge cases, and YAML frontmatter delimiter smuggling.
-3. Write negative unit tests in `pkg/okf/mutate_security_test.go` or `cmd/okf/mcp_test.go` verifying that boundary violations, path escapes, and malformed inputs are deterministically rejected with errors.
-4. If you discover an edge-case gap or code health improvement:
-   - Provide a minimal reproducible test case.
-   - Implement the input sanitization or defensive error-handling fix.
-   - Open a Pull Request against `develop` detailing:
-     * Invariant Hardened & Defensive Category (e.g. Safe Path Resolution)
-     * Defensive Rationale & Root Cause Analysis
-     * Implemented Hardening & Tests Added
+3. Write negative unit tests in `pkg/okf/mutate_security_test.go` or `pkg/okf/mcp_test.go` verifying that boundary violations, path escapes, and malformed inputs are deterministically rejected with errors.
 ```
-
-### Daily Integration Workflow (Maintainer / Reviewer)
-
-When Jules finishes an audit session and opens a branch / PR:
-
-1. **List Open Jules Branches**:
-   ```bash
-   make jules-list
-   ```
-2. **Review & Verify in Isolated Worktree**:
-   ```bash
-   make jules-review
-   # or for a specific branch: make jules-review BRANCH=<branch-name>
-   ```
-   *Automatically checks out the latest (or specified) Jules branch in an isolated temporary Git worktree, runs `make check`, and shows the compact diff against `develop`.*
-3. **Inspect for Edge Cases & False Positives**:
-   *Check that valid concepts (e.g. nested subfolders) are not inadvertently blocked.*
-4. **Merge & Clean Up**:
-   ```bash
-   make jules-merge
-   # or for a specific branch: make jules-merge BRANCH=<branch-name>
-   git push origin develop
-   git push origin --delete <jules-branch-name>
-   ```
 

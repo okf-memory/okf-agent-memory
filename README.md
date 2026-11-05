@@ -339,7 +339,6 @@ okf-agent-memory/
 │   ├── registry/           # Decentralized OKF Registry client & archive unpacker
 │   ├── sync/               # Blind sync engine, 3-way reconcile & hub client/server
 │   └── vault/              # AES-256-GCM envelope crypto, Argon2id KDF & CAS blind storage
-├── scripts/                # Verification & automated audit review helpers (e.g. Jules integration)
 ├── AGENTS.md               # Operating instructions for AI coding agents
 ├── CONTRIBUTING.md         # Contribution guidelines & development workflow
 ├── CONTRIBUTORS.md         # Community contributors & acknowledgements

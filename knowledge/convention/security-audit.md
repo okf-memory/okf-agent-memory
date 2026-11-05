@@ -1,71 +1,59 @@
 ---
 type: Process
-title: "Automated Security Auditing & Jules Remediation Workflow"
-description: Proactive continuous security auditing with Google Jules and the isolated worktree review and merge workflow.
-generated: { by: agent/mcp, at: "2026-09-23T19:06:37Z" }
+title: "Automated Security Auditing & Defensive Verification Workflow"
+description: "Proactive continuous security auditing with static analyzers (gosec, govulncheck), adversarial agent reviews, and regression testing."
+generated: { by: agent/mcp, at: "2026-11-05T22:08:32Z" }
 ---
 
-# Automated Security Auditing & Jules Remediation Workflow
+# Automated Security Auditing & Defensive Verification Workflow
 
 ## Context & Objectives
 
-To maintain the highest level of defensive assurance for `okf-agent-memory`, automated security auditing is integrated as a proactive, continuous discovery loop. **Google Jules** runs as an autonomous adversarial background agent performing daily repository audits, complemented by deterministic local review and integration workflows.
+To maintain the highest level of defensive assurance for `okf-agent-memory`, automated security auditing is integrated into the local and CI verification pipeline (`make security-audit` and `make check`), complemented by adversarial agent security reviews and regression testing against `docs/security/SECURITY_AUDIT.md`.
 
 ---
 
-## 1. Continuous Audit Protocol (Google Jules)
+## 1. Automated Static & Vulnerability Analysis (`make security-audit`)
 
-Google Jules acts as a Go Quality Assurance & Defensive Hardening Specialist targeting `pkg/okf` and `cmd/okf`:
+Every verification run executes static security analysis and vulnerability scanning across all Go packages:
 
-* **Target Branch**: Jules must branch off and open Pull Requests strictly against `develop`.
-* **Focus Areas**:
-  - Path traversal and directory boundary containment (CWE-22) in `bundle.go` and `mutate.go`.
-  - Symlink resolution and escape containment (CWE-59).
-  - MCP tool call argument sanitization and server root confinement (`cmd/okf/mcp.go`).
-  - Resource limits, parsing edge cases, and frontmatter smuggling.
-* **Defensive Regression Tests**: Every finding must include minimal reproducible negative unit test cases in `pkg/okf/mutate_security_test.go` or `cmd/okf/mcp_test.go` confirming boundary violations are rejected deterministically.
+```bash
+make security-audit
+```
+
+* **`gosec`**: Inspects Go AST for security weaknesses (`-exclude=G301,G306 -exclude-dir=examples ./...`). Every intentional file access in `pkg/okf`, `pkg/sync`, `pkg/vault`, and `pkg/registry` must first pass canonical boundary containment (`ensureWithinRoot` or `validateTreePath`) before `#nosec` annotations are permitted.
+* **`govulncheck`**: Verifies the Go standard library toolchain and `golang.org/x/crypto` against the official Go vulnerability database.
 
 ---
 
-## 2. Daily Integration & Verification Pipeline
+## 2. Adversarial Security Audit Scope
 
-When Jules opens one or more remediation branches (`security-audit-*`, `security-harden-*`, `fix-abs-path-*`, `fix-cwe22-*`, `fix-mcp-*`):
+Security audits target `pkg/okf`, `pkg/sync`, `pkg/vault`, `pkg/registry`, and `internal/cli` across five defensive areas:
 
-### Step 1: Discover Pending Branches
+* **Path Traversal & Bundle Boundary Containment (CWE-22)**: Canonical path verification (`ensureWithinRoot`, `resolveInBundle`, `validateTreePath`, `ValidateBundleID`) across POSIX and Windows path conventions (`IsAbsPath`).
+* **Symlink Escape Prevention (CWE-59)**: Confining bundle roots and internal symlinks strictly to markdown files within the canonical bundle boundary.
+* **Concurrent Write Serialization & CAS Integrity (CWE-362)**: Cross-process bundle write locking (`WithBundleLock` via `.okf-write.lock`), transactional RMW lock scopes (`UpdateConcept`, `RelateConcepts`), and optimistic concurrency checks (`ErrConcurrentModification`) preventing silent lost updates.
+* **MCP Tool Argument Sanitization & Root Confinement**: Strict parameter length bounds (`getStringArg`), 4MB streaming line limits, server root confinement (`resolveBundleDir`), and human verification provenance guards (`ensureNoForgedHumanVerification`).
+* **Resource Bounds & Frontmatter Injection Defense**: Rejecting newline smuggling and nested `---` frontmatter blocks in concept metadata and bodies (`sanitizeConceptMetadata`).
+
+---
+
+## 3. Verification & Regression Testing Pipeline (`make check`)
+
+Every security hardening change or bug fix must include minimal reproducible negative unit tests in `pkg/okf/mutate_security_test.go`, `pkg/okf/concurrency_test.go`, `pkg/okf/mcp_test.go`, or `pkg/sync/*_test.go`, and pass the complete deterministic gate before merge into `develop`:
+
 ```bash
-make jules-list
+make check
 ```
-Lists all open Jules remediation branches on `origin`.
 
-### Step 2: Isolated Verification & Review
-```bash
-make jules-review
-# or for a specific branch:
-make jules-review BRANCH=<branch-name>
-```
-* **Git Worktree Isolation**: Spawns an isolated temporary Git worktree for the target branch without disrupting the developer's working directory.
-* **Automated Pipeline Gate**: Runs `make check` (formatting, vet, lint, unit/integration tests, and strict OKF bundle validations).
-* **Multi-Branch Awareness**: If multiple Jules branches are pending, reports all of them and selects the latest by default.
-
-### Step 3: Adversarial Review & False-Positive Gating
-Review the diff against `develop` for subtle agentic hallucinations or false positives:
-* **False Positives on Concept Names**: Ensure root-level protections (e.g. `AGENTS.md`) do not inadvertently reject legitimate nested concepts in subdirectories (such as `architecture/agents.md`).
-* **Clean Code & Permissions**: Verify permissions remain `0o644` for files and `0o755` for directories.
-
-### Step 4: Deterministic Merge & Remote Cleanup
-```bash
-make jules-merge
-# or for a specific branch:
-make jules-merge BRANCH=<branch-name>
-
-# Push to origin and remove remote branch:
-git push origin develop
-git push origin --delete <jules-branch-name>
-```
+1. **`make fmt` & `make vet` & `make lint`**: Zero static analysis or linter findings (`golangci-lint`).
+2. **`make security-audit`**: Zero `gosec` or `govulncheck` vulnerabilities.
+3. **`make test`**: 100% pass rate with the Go race detector enabled (`go test -v -race ./...`).
+4. **`make validate-all`**: Zero errors, zero warnings, and zero drift across `knowledge/` and all reference examples.
 
 ---
 
 # Related Concepts
-- [Bundle Isolation and Mutation Security Boundaries](../architecture/security-boundaries.md): Core defensive security boundaries audited by Jules
+- [Bundle Isolation and Mutation Security Boundaries](../architecture/security-boundaries.md): Core defensive security boundaries and concurrency controls
 - [MCP Tool Security & Untrusted Agent Input](mcp-agent-safety.md): Sanitization and confinement requirements for agent MCP interfaces
 - [Contributor Guidelines & PR Standards](contributing.md): General quality gates and verification standards for pull requests

@@ -2,7 +2,7 @@
 type: Convention
 title: "Engineering & Coding Best Practices (Clean Code, TDD, DRY)"
 description: "Core software engineering conventions covering Clean Code, TDD, DRY, idiomatic Go, and zero third-party dependency design."
-generated: { by: agent/mcp, at: "2026-09-17T08:06:02Z" }
+generated: { by: agent/mcp, at: "2026-11-05T22:08:02Z" }
 ---
 
 # Engineering & Coding Best Practices (Clean Code, TDD, DRY)
@@ -95,8 +95,9 @@ This runs the complete deterministic pipeline:
 1. `make fmt`: Source code formatted with `gofumpt` / `gofmt`.
 2. `make vet`: Go vet static diagnostics clean.
 3. `make lint`: `golangci-lint` passes with 0 issues.
-4. `make test`: 100% unit and scenario test pass rate.
-5. `make validate-all`: All OKF bundles (`knowledge/` and all examples) strictly conformant.
+4. `make security-audit`: `gosec` and `govulncheck` report zero security issues.
+5. `make test`: 100% unit and scenario test pass rate with race detector enabled.
+6. `make validate-all`: All OKF bundles (`knowledge/` and all examples) strictly conformant.
 
 ---
 
@@ -104,4 +105,4 @@ This runs the complete deterministic pipeline:
 - [Contributor Guidelines & PR Standards](contributing.md): Quality gates and contribution workflow
 - [5-Layer System Architecture](../architecture/layers.md): Layered separation of concerns and zero-dependency rule
 - [Bundle Isolation and Mutation Security Boundaries](../architecture/security-boundaries.md): Defensive choke-points and path isolation architecture
-- [Automated Security Auditing & Jules Remediation Workflow](security-audit.md): Proactive adversarial auditing and verification pipeline
+- [Automated Security Auditing & Defensive Verification Workflow](security-audit.md): Proactive adversarial auditing and verification pipeline
