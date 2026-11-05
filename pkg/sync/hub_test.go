@@ -383,10 +383,13 @@ func TestHub_Serve_E2E_Socket(t *testing.T) {
 		t.Fatalf("expected collision detected warning, got:\n%s", syncBufConflict.String())
 	}
 
-	conflictForkPath := filepath.Join(dirB, "concepts", "note_b.conflict-local.md")
-	conflictContent, err := os.ReadFile(conflictForkPath)
+	conflictForks, err := filepath.Glob(filepath.Join(dirB, "concepts", "note_b.conflict-local*.md"))
+	if err != nil || len(conflictForks) != 1 {
+		t.Fatalf("expected exactly 1 conflict fork file, got %v (err: %v)", conflictForks, err)
+	}
+	conflictContent, err := os.ReadFile(conflictForks[0])
 	if err != nil {
-		t.Fatalf("conflict fork file %s was not created: %v", conflictForkPath, err)
+		t.Fatalf("conflict fork file %s was not created: %v", conflictForks[0], err)
 	}
 	if string(conflictContent) != "# Note B Conflicting Local Edit\n" {
 		t.Fatalf("unexpected content in conflict fork: %s", string(conflictContent))

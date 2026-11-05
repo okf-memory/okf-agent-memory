@@ -207,12 +207,13 @@ func TestEngine_Sync_CollisionForking(t *testing.T) {
 		t.Fatalf("shared.md expected 'Remote edits by B', got %q", string(sharedContent))
 	}
 
-	forkedContent, err := os.ReadFile(filepath.Join(dirA, "shared.conflict-local.md"))
+	forkedPath := sync.ConflictForkPath("shared.md", syncResA.Conflicts[0].LocalEntry)
+	forkedContent, err := os.ReadFile(filepath.Join(dirA, forkedPath))
 	if err != nil {
-		t.Fatalf("failed to read shared.conflict-local.md in dirA: %v", err)
+		t.Fatalf("failed to read %s in dirA: %v", forkedPath, err)
 	}
 	if string(forkedContent) != "Local edits by A" {
-		t.Fatalf("shared.conflict-local.md expected 'Local edits by A', got %q", string(forkedContent))
+		t.Fatalf("%s expected 'Local edits by A', got %q", forkedPath, string(forkedContent))
 	}
 }
 

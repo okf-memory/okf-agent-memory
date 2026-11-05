@@ -3,7 +3,7 @@ type: Decision
 title: Zero-Knowledge Vault Cryptography and Blind Sync Architecture
 description: "Client-side zero-knowledge AES-256-GCM envelope encryption, Argon2id KDF, CAS blind storage, 3-way reconcile sync protocol, and Bearer auth."
 tags: [vault, crypto, zero-knowledge, sync, cas, reconcile]
-generated: { by: agent/cli, at: "2026-10-14T00:00:00Z" }
+generated: { by: agent/mcp, at: "2026-11-05T21:34:19Z" }
 governance: constraint
 code_refs: [pkg/vault, pkg/sync, internal/cli/hub.go]
 ---
@@ -62,7 +62,7 @@ When a `409 Conflict` occurs during synchronization:
 1. **Disjoint Auto-Merge**: If concurrent clients modified distinct files, the engine performs a fast-forward 3-way merge (`baseTree`, `localTree`, `remoteTree`) without manual interaction.
 2. **CLI Collision Failsafe**: If both clients modified the exact same file incompatibly:
    * The remote version is adopted at `<filename>.md`.
-   * The local conflicting changes are preserved at `<filename>.conflict-local.md`.
+   * The local conflicting changes are preserved at `<filename>.conflict-local-<hash8>.md`, where `<hash8>` is the first 8 hex characters of the local content's plaintext hash. The suffix keeps each conflicting writer's fork distinct, so a later device's conflict cannot overwrite a conflict copy an earlier device already committed.
    * **Guarantee**: Zero data loss under all concurrency conditions.
 
 ---

@@ -33,6 +33,31 @@ func ConflictLocalPath(path string) string {
 	return path + ".conflict-local"
 }
 
+// ConflictForkPath computes the fork filename for saving conflicting local
+// changes, suffixed with a short hash of the local content's plaintext hash.
+// The suffix keeps every conflicting writer's fork distinct: with one fixed
+// path per file, a later device's conflict would overwrite the conflict copy a
+// previous device already committed, silently dropping that device's edit from
+// the current tree. The plaintext hash (not the blob hash) is used because the
+// encrypted envelope is non-deterministic across devices. The fixed-path
+// result of ConflictLocalPath is returned when no plaintext hash is available.
+// e.g. "ideas.md" -> "ideas.conflict-local-1a2b3c4d.md"
+func ConflictForkPath(path string, local vault.TreeEntry) string {
+	base := ConflictLocalPath(path)
+	hash := local.PlaintextHash
+	if hash == "" {
+		return base
+	}
+	if len(hash) > 8 {
+		hash = hash[:8]
+	}
+	ext := filepath.Ext(base)
+	if ext != "" {
+		return strings.TrimSuffix(base, ext) + "-" + hash + ext
+	}
+	return base + "-" + hash
+}
+
 // Reconcile performs a 3-way merge of the file manifests: base, local, and remote.
 // If both local and remote modified disjoint sets of files, it merges cleanly with 0 conflicts.
 // If both modified the same file incompatibly, it reports a Conflict.
@@ -176,7 +201,7 @@ func ApplyConflictFailsafe(merged *vault.Tree, conflicts []Conflict) {
 		return
 	}
 	for _, c := range conflicts {
-		forked := ConflictLocalPath(c.Path)
+		forked := ConflictForkPath(c.Path, c.LocalEntry)
 		if c.RemoteEntry.BlobHash != "" {
 			merged.Entries[c.Path] = c.RemoteEntry
 		}

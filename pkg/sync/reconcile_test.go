@@ -111,16 +111,17 @@ func TestReconcile_CollisionDetectionAndForking(t *testing.T) {
 		t.Fatalf("conflict entries mismatch: %+v", c)
 	}
 
-	// Apply CLI failsafe: remote replaces ideas.md, local is preserved as ideas.conflict-local.md
+	// Apply CLI failsafe: remote replaces ideas.md, local is preserved under a
+	// fork path suffixed with the local content's plaintext hash.
 	sync.ApplyConflictFailsafe(result.MergedTree, result.Conflicts)
 
 	if result.MergedTree.Entries["ideas.md"].BlobHash != "b_remote" {
 		t.Fatalf("ideas.md should contain remote version")
 	}
 
-	forkedPath := "ideas.conflict-local.md"
+	forkedPath := "ideas.conflict-local-p_local.md"
 	if result.MergedTree.Entries[forkedPath].BlobHash != "b_local" {
-		t.Fatalf("ideas.conflict-local.md should contain local version, got: %+v", result.MergedTree.Entries[forkedPath])
+		t.Fatalf("%s should contain local version, got: %+v", forkedPath, result.MergedTree.Entries[forkedPath])
 	}
 }
 
@@ -140,5 +141,107 @@ func TestConflictLocalPath(t *testing.T) {
 		if got != tc.expected {
 			t.Errorf("ConflictLocalPath(%q) = %q; want %q", tc.input, got, tc.expected)
 		}
+	}
+}
+
+func TestConflictForkPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		local    vault.TreeEntry
+		expected string
+	}{
+		{
+			name:     "markdown file gets hash suffix before extension",
+			path:     "notes.md",
+			local:    vault.TreeEntry{PlaintextHash: "1a2b3c4d5e6f"},
+			expected: "notes.conflict-local-1a2b3c4d.md",
+		},
+		{
+			name:     "short hash is used verbatim",
+			path:     "notes.md",
+			local:    vault.TreeEntry{PlaintextHash: "abc"},
+			expected: "notes.conflict-local-abc.md",
+		},
+		{
+			name:     "path without extension",
+			path:     "unformatted",
+			local:    vault.TreeEntry{PlaintextHash: "1a2b3c4d5e6f"},
+			expected: "unformatted-1a2b3c4d.conflict-local",
+		},
+		{
+			name:     "empty plaintext hash falls back to fixed fork path",
+			path:     "notes.md",
+			local:    vault.TreeEntry{BlobHash: "b_local"},
+			expected: "notes.conflict-local.md",
+		},
+		{
+			name:     "nested path",
+			path:     "docs/architecture/spec.md",
+			local:    vault.TreeEntry{PlaintextHash: "1a2b3c4d5e6f"},
+			expected: "docs/architecture/spec.conflict-local-1a2b3c4d.md",
+		},
+	}
+
+	for _, tc := range tests {
+		got := sync.ConflictForkPath(tc.path, tc.local)
+		if got != tc.expected {
+			t.Errorf("%s: ConflictForkPath(%q) = %q; want %q", tc.name, tc.path, got, tc.expected)
+		}
+	}
+}
+
+// Two conflicting writers with different local content must land on distinct
+// fork paths, so the later conflict cannot overwrite the earlier device's
+// committed conflict copy (issue: third conflicting writer overwrites the
+// committed conflict copy of the second).
+func TestApplyConflictFailsafe_DistinctLocalContentDistinctForks(t *testing.T) {
+	merged := vault.NewTree()
+	first := sync.Conflict{
+		Path:        "decisions/seed.md",
+		LocalEntry:  vault.TreeEntry{BlobHash: "b_B", PlaintextHash: "hash-BB"},
+		RemoteEntry: vault.TreeEntry{BlobHash: "b_remote"},
+	}
+	second := sync.Conflict{
+		Path:        "decisions/seed.md",
+		LocalEntry:  vault.TreeEntry{BlobHash: "b_C", PlaintextHash: "hash-CC"},
+		RemoteEntry: vault.TreeEntry{BlobHash: "b_remote2"},
+	}
+
+	sync.ApplyConflictFailsafe(merged, []sync.Conflict{first})
+	forkB := merged.Entries["decisions/seed.conflict-local-hash-BB.md"]
+	if forkB.BlobHash != "b_B" {
+		t.Fatalf("first conflict fork missing: %+v", merged.Entries)
+	}
+	sync.ApplyConflictFailsafe(merged, []sync.Conflict{second})
+	if merged.Entries["decisions/seed.conflict-local-hash-BB.md"].BlobHash != "b_B" {
+		t.Fatalf("second conflict overwrote the first device's fork")
+	}
+	if merged.Entries["decisions/seed.conflict-local-hash-CC.md"].BlobHash != "b_C" {
+		t.Fatalf("second conflict fork missing: %+v", merged.Entries)
+	}
+}
+
+// The same conflicting local content re-synced must reuse the same fork path,
+// so repeated syncs of an unresolved conflict do not accumulate duplicates.
+func TestApplyConflictFailsafe_SameContentReusesFork(t *testing.T) {
+	merged := vault.NewTree()
+	c := sync.Conflict{
+		Path:        "decisions/seed.md",
+		LocalEntry:  vault.TreeEntry{BlobHash: "b_local", PlaintextHash: "hash-BB"},
+		RemoteEntry: vault.TreeEntry{BlobHash: "b_remote"},
+	}
+
+	sync.ApplyConflictFailsafe(merged, []sync.Conflict{c})
+	sync.ApplyConflictFailsafe(merged, []sync.Conflict{c})
+
+	count := 0
+	for path := range merged.Entries {
+		if len(path) > 0 && path != "decisions/seed.md" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 fork entry, got %d: %+v", count, merged.Entries)
 	}
 }
