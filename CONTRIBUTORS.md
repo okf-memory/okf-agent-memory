@@ -19,6 +19,7 @@ Thank you to everyone who has contributed to **OKF Agent Memory**! Every contrib
 * **Zerui Ge ([@gezerui888](https://github.com/gezerui888))** — Nearest-first scope fallback for bare concept IDs in show and okf_show (#47, #61)
 * **Terry Xeenastar ([@iSkyleya1](https://github.com/iSkyleya1))** — Relative nested bundle resolution in MCP and preservation of unknown keys in sources (#57, #58)
 * **Nick Hodulik ([@nhod](https://github.com/nhod))** — Remote path containment in hub sync and registry installs, staged atomic rollbacks, and symlinked working directory root resolution (#62, #63, #64)
+* **fchengyan ([@fcy222fcy](https://github.com/fcy222fcy))** — Distinct plaintext-hash conflict fork paths for multi-writer hub sync (#60, #66)
 
 ---
 
@@ -33,7 +34,7 @@ Thank you to everyone who has contributed to **OKF Agent Memory**! Every contrib
 * **Alvise ([@alvistar](https://github.com/alvistar))** — Bug report and reproduction for drift validation false positives with bundle-absolute and dot-relative index links (#41).
 * **Khouloud Kessentini ([@Khouloud-Kessentini](https://github.com/Khouloud-Kessentini))** — Analysis and bug reports on DF/TF asymmetry, acronym suppression, prefix false positives, and per-bundle vendor IDF inversion in BM25 scoring (#42, #54).
 * **Ritsu Kuroda ([@kurodaritsu](https://github.com/kurodaritsu))** — Architectural proposal and requirement analysis for multi-scope bundle memory layering and composite BM25 search ranking (#11).
-* **Cordero Core ([@cdcore09](https://github.com/cdcore09))** — Bug report, reproduction, and root-cause analysis for lost sync state and index collisions in hub sync (#51, #52)
+* **Cordero Core ([@cdcore09](https://github.com/cdcore09))** — Bug report, reproduction, and root-cause analysis for lost sync state, index collisions, and multi-writer conflict fork overwrites in hub sync (#51, #52, #60)
 * **[@DevMasterDru](https://github.com/DevMasterDru)** — Bug reports and proposals for nearest-first scope resolution in `show` (#47), trusted symlink bundle roots (#45), list-valued frontmatter filters (#48), and preservation of custom frontmatter lists on update (#49).
 * **Nick Hodulik ([@nhod](https://github.com/nhod))** — Responsible security disclosure, reproduction fixtures, and boundary hardening for remote hub tree paths and registry bundle IDs (#64).
 

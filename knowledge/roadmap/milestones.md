@@ -4,7 +4,7 @@ title: "Project Roadmap & Development Milestones"
 description: "Phased implementation roadmap from specification validation to Go library, CLI tooling, cross-agent testing, and quality scorecards."
 resource: "https://github.com/okf-memory/okf-agent-memory"
 tags: [roadmap, milestones, phases, planning]
-generated: { by: agent/mcp, at: "2026-11-05T22:08:04Z" }
+generated: { by: agent/mcp, at: "2026-11-05T22:41:45Z" }
 status: stable
 sources:
   - resource: ../../docs/project/ROADMAP.md
@@ -33,7 +33,7 @@ The project progresses through 21 structured phases designed to take OKF Agent M
 | **Phase 10**| **Documentation** | **Completed** | `GETTING_STARTED.md`, `CLI.md`, `SECURITY.md`, `CONTRIBUTING.md`, `README.md`. |
 | **Phase 11**| **Release & CI/CD** | **Completed** | GitHub Actions CI/CD, cross-platform release binaries, starter pack packaging, Homebrew tap. |
 | **Phase 12**| **Governance & Code Binding** | **Completed** | 3-tier epistemic governance (`constraint`, `hold`, `context`), `code_refs` binding, `--for-path` discovery, and dogfooding parity test. |
-| **Phase 13**| **DMAA & Agent Action Grammar** | **Completed** | AAG RFC specification, AST linter (`AAG-001`–`AAG-005`), token budget gates, multi-domain templates, and SSoT tool symlinks (`okf agents link`). |
+| **Phase 13**| **DMAA & Agent Action Grammar** | **Completed** | AAG RFC specification, AST linter (`AAG-001`–`AAG-005`), token budget gates, multi-domain templates, and SSoT tool symlinks (`okf agents link` and automatic creation in `okf bootstrap`). |
 | **Phase 14**| **Empirical Benchmarking & DMAA Validation** | **Completed** | Pure Go benchmark runner (`okf-benchmark`), Layer 1 & 2 suites, empirical validation on local/cloud models, peer methodology guide, and CLI help hardening. |
 | **Phase 15**| **Zero-Knowledge Vault Sync & Memory Hub** | **Completed** | Client-side AES-256-GCM envelope crypto, Argon2id KDF, blind CAS protocol, atomic head concurrency control, 3-way reconcile engine with distinct plaintext-hash conflict forks, and CLI hub commands with Bearer auth. |
 | **Phase 16**| **Strict MCP Conformance & Storage Hardening** | **Completed** | Object `outputSchema` and `structuredContent` MCP specification conformance (OpenCode, Pi Agent), atomic filesystem writes, two-stage cross-process write locking (`WithBundleLock`) and optimistic concurrency checks (`ErrConcurrentModification`), index broken link scanning, bidirectional drift validation, and crash consistency test suites. |
