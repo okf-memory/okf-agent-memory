@@ -4,6 +4,7 @@ import (
 	"bufio"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -675,16 +676,15 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			return
 		}
 		cleanID := strings.TrimSuffix(conceptID, ".md")
-		c, ok := b.Concepts[cleanID]
-		if !ok {
+		if _, ok := b.Concepts[cleanID]; !ok {
 			s.sendToolResult(req.ID, fmt.Sprintf("Concept '%s' not found in %s", cleanID, bundleDir), nil, true)
 			return
 		}
 
-		// Work on a copy to prevent in-memory concept corruption if validation or disk write fails
-		updated := *c
-		if _, exists := callParams.Arguments["type"]; exists {
-			conceptType, err := getStringArg(callParams.Arguments, "type", 1000, true)
+		_, hasType := callParams.Arguments["type"]
+		var conceptType string
+		if hasType {
+			conceptType, err = getStringArg(callParams.Arguments, "type", 1000, true)
 			if err != nil {
 				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 				return
@@ -693,27 +693,30 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 				s.sendToolResult(req.ID, "Invalid type: concept type cannot be empty or whitespace", nil, true)
 				return
 			}
-			updated.Type = strings.TrimSpace(conceptType)
+			conceptType = strings.TrimSpace(conceptType)
 		}
-		if _, exists := callParams.Arguments["status"]; exists {
-			status, err := getMutationStatus(callParams.Arguments)
+		_, hasStatus := callParams.Arguments["status"]
+		var status string
+		if hasStatus {
+			status, err = getMutationStatus(callParams.Arguments)
 			if err != nil {
 				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 				return
 			}
-			updated.Status = status
 		}
-		if _, exists := callParams.Arguments["tags"]; exists {
-			tags, err := getTagsArg(callParams.Arguments)
+		_, hasTags := callParams.Arguments["tags"]
+		var tags []string
+		if hasTags {
+			tags, err = getTagsArg(callParams.Arguments)
 			if err != nil {
 				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 				return
 			}
-			updated.Tags = tags
 		}
-
-		if _, exists := callParams.Arguments["title"]; exists {
-			title, err := getStringArg(callParams.Arguments, "title", 1000, true)
+		_, hasTitle := callParams.Arguments["title"]
+		var title string
+		if hasTitle {
+			title, err = getStringArg(callParams.Arguments, "title", 1000, true)
 			if err != nil {
 				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 				return
@@ -722,42 +725,67 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 				s.sendToolResult(req.ID, "Invalid title: concept title cannot be empty or whitespace", nil, true)
 				return
 			}
-			updated.Title = strings.TrimSpace(title)
+			title = strings.TrimSpace(title)
 		}
-		if _, exists := callParams.Arguments["description"]; exists {
-			desc, err := getStringArg(callParams.Arguments, "description", 1000, false)
+		_, hasDesc := callParams.Arguments["description"]
+		var desc string
+		if hasDesc {
+			desc, err = getStringArg(callParams.Arguments, "description", 1000, false)
 			if err != nil {
 				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 				return
 			}
-			updated.Description = desc
 		}
-		if _, exists := callParams.Arguments["body"]; exists {
-			body, err := getStringArg(callParams.Arguments, "body", 1024*1024, false)
+		_, hasBody := callParams.Arguments["body"]
+		var body string
+		if hasBody {
+			body, err = getStringArg(callParams.Arguments, "body", 1024*1024, false)
 			if err != nil {
 				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 				return
 			}
-			updated.Body = body
 		}
 
-		if err := SaveConcept(bundleDir, &updated, SaveOptions{
+		updated, err := UpdateConcept(bundleDir, cleanID, SaveOptions{
 			IsNew:     false,
 			AutoLog:   true,
 			AutoIndex: true,
 			Actor:     "agent/mcp",
-		}); err != nil {
+		}, func(c *Concept) error {
+			if hasType {
+				c.Type = conceptType
+			}
+			if hasStatus {
+				c.Status = status
+			}
+			if hasTags {
+				c.Tags = tags
+			}
+			if hasTitle {
+				c.Title = title
+			}
+			if hasDesc {
+				c.Description = desc
+			}
+			if hasBody {
+				c.Body = body
+			}
+			return nil
+		})
+		if err != nil {
+			if errors.Is(err, ErrConceptNotFound) {
+				s.sendToolResult(req.ID, fmt.Sprintf("Concept '%s' not found in %s", cleanID, bundleDir), nil, true)
+				return
+			}
 			s.sendToolResult(req.ID, fmt.Sprintf("Failed to update concept: %v", err), nil, true)
 			return
 		}
 
-		*c = updated
-
-		msg := fmt.Sprintf("Successfully updated concept %s in %s", c.Path, bundleDir)
+		msg := fmt.Sprintf("Successfully updated concept %s in %s", updated.Path, bundleDir)
 		structured := map[string]any{
 			"success":    true,
-			"concept_id": c.ID,
-			"path":       c.Path,
+			"concept_id": updated.ID,
+			"path":       updated.Path,
 			"bundle":     bundleDir,
 			"message":    msg,
 		}

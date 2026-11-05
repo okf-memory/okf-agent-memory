@@ -2,7 +2,7 @@
 type: Decision
 title: Bundle Isolation and Mutation Security Boundaries
 description: "Defensive security architecture enforcing canonical bundle boundaries, symlink containment, path traversal prevention for local mutations and for untrusted remote hub, sync and registry input, and frontmatter injection defense."
-generated: { by: agent/mcp, at: "2026-10-28T16:33:08Z" }
+generated: { by: agent/mcp, at: "2026-11-05T21:57:20Z" }
 ---
 
 # Bundle Isolation and Mutation Security Boundaries
@@ -13,7 +13,7 @@ OKF Agent Memory is designed to be written, updated, and queried by autonomous A
 
 ## Security Controls & Defense-in-Depth
 
-The tooling layer enforces defensive confinement across four critical choke-points:
+The tooling layer enforces defensive confinement across eight critical choke-points:
 
 ### 1. Canonical Bundle Confinement (`ensureWithinRoot`)
 All file reads in `LoadBundle` and writes in `SaveConcept`, `UpdateParentIndex`, and `AppendLogEntry` resolve symlinks and compare canonical paths against the bundle root via `filepath.Rel`.
@@ -65,6 +65,12 @@ Hub tree manifests, registry manifests, registry archives, and `okf.lock` entrie
 - **Registry bundle ids** (`pkg/registry`, `ValidateBundleID`): an id must be a canonical relative slash path. Registry manifests and `okf.lock` entries with an absolute, `..`, `.`, empty, backslash, or NUL id are refused with an error naming the manifest or entry. Scoped and nested ids (`@peter/django-5-rules`, `acme/tools/linter`) remain valid. `.okf/vendor` must resolve inside the workspace, and each bundle directory strictly inside `.okf/vendor` (`ResolveVendorDir`).
 - **Archive extraction**: every entry is checked lexically and through symlinks before anything is extracted, so an archive is applied in full or not at all.
 - **Staged installs and rollback**: `okf pull` and `okf restore` extract and validate in a fresh staging directory under `.okf`, then move it into place. A failed install discards only that staging directory. Rollback never removes a directory this invocation did not create, and never follows a symlink. `okf vendor remove` re-resolves its target and unlinks a symlink instead of following it.
+
+### 8. Concurrent Local Write Serialization & Optimistic Concurrency Control (`WithBundleLock`)
+To prevent silent Read-Modify-Write (RMW) lost updates when parallel subagents, multiple IDE MCP servers, or concurrent CLI invocations mutate the same local bundle (`knowledge/` or `~/.okf/`):
+- **Stage 1 (Cross-Process Bundle Write Lock)**: `InitBundle`, `SaveConcept`, `UpdateConcept`, `RelateConcepts`, `UpdateParentIndex`, and `AppendLogEntry` acquire an exclusive lockfile (`.okf-write.lock`, confined via `ensureWithinRoot` and created atomically with `os.O_CREATE|os.O_EXCL`) across the entire mutation transaction (concept write + parent `index.md` update + `log.md` bookkeeping), with bounded backoff and automatic stale-lock eviction (`acquired_at` age check).
+- **Stage 2a (Transactional RMW Scope)**: `UpdateConcept` (used by `okf update` and MCP `okf_update`) and `RelateConcepts` (`okf relate` and MCP `okf_relate`) acquire the bundle lock **before** calling `LoadBundle`, ensuring concurrent updates or link insertions on the same concept execute strictly in sequence against the latest committed disk state.
+- **Stage 2b (Optimistic Concurrency Check / CAS)**: `LoadBundle` records the SHA-256 digest (`sourceHash`) of each loaded concept file. When `SaveConcept` writes an existing concept (`IsNew: false`) that was loaded via `LoadBundle` outside `UpdateConcept`, it verifies inside the bundle lock that the on-disk file still matches `sourceHash`, returning `ErrConcurrentModification` if another writer modified the file in the interim.
 
 ## Relationships
 

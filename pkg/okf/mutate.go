@@ -70,28 +70,40 @@ func InitBundle(dir string) error {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	rootIndex := filepath.Join(dir, "index.md")
-	if _, err := os.Stat(rootIndex); os.IsNotExist(err) {
-		indexContent := "---\nokf_version: \"0.2\"\n---\n\n# Knowledge Base\n\n"
-		if err := atomicWriteFile(rootIndex, []byte(indexContent), 0o644); err != nil {
-			return fmt.Errorf("failed to write root index.md: %w", err)
+	return WithBundleLock(dir, func() error {
+		rootIndex := filepath.Join(dir, "index.md")
+		if _, err := os.Stat(rootIndex); os.IsNotExist(err) {
+			indexContent := "---\nokf_version: \"0.2\"\n---\n\n# Knowledge Base\n\n"
+			if err := atomicWriteFile(rootIndex, []byte(indexContent), 0o644); err != nil {
+				return fmt.Errorf("failed to write root index.md: %w", err)
+			}
 		}
-	}
 
-	logFile := filepath.Join(dir, "log.md")
-	if _, err := os.Stat(logFile); os.IsNotExist(err) {
-		today := time.Now().UTC().Format("2006-01-02")
-		logContent := fmt.Sprintf("## %s\n* **Creation**: Initialized OKF v0.2 knowledge bundle.\n", today)
-		if err := atomicWriteFile(logFile, []byte(logContent), 0o644); err != nil {
-			return fmt.Errorf("failed to write log.md: %w", err)
+		logFile := filepath.Join(dir, "log.md")
+		if _, err := os.Stat(logFile); os.IsNotExist(err) {
+			today := time.Now().UTC().Format("2006-01-02")
+			logContent := fmt.Sprintf("## %s\n* **Creation**: Initialized OKF v0.2 knowledge bundle.\n", today)
+			if err := atomicWriteFile(logFile, []byte(logContent), 0o644); err != nil {
+				return fmt.Errorf("failed to write log.md: %w", err)
+			}
 		}
-	}
 
-	return nil
+		return nil
+	})
 }
 
 // AppendLogEntry prepends a new dated change entry to log.md.
 func AppendLogEntry(bundleDir, entryType, description string) error {
+	logPath := filepath.Join(bundleDir, "log.md")
+	if _, err := ensureWithinRoot(bundleDir, logPath); err != nil {
+		return err
+	}
+	return WithBundleLock(bundleDir, func() error {
+		return appendLogEntryLocked(bundleDir, entryType, description)
+	})
+}
+
+func appendLogEntryLocked(bundleDir, entryType, description string) error {
 	entryType = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(entryType, "\r", " "), "\n", " "))
 	description = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(description, "\r", " "), "\n", " "))
 
@@ -210,6 +222,34 @@ func ValidateConceptID(id string) error {
 
 // UpdateParentIndex ensures the concept is listed in its immediate directory index.md.
 func UpdateParentIndex(bundleDir string, c *Concept) error {
+	absBundle, err := filepath.Abs(bundleDir)
+	if err != nil {
+		return fmt.Errorf("invalid bundle directory: %w", err)
+	}
+
+	normConceptPath := strings.ReplaceAll(c.Path, "\\", "/")
+	dir := path.Dir(normConceptPath)
+	indexRelPath := "index.md"
+	if dir != "." {
+		indexRelPath = filepath.Join(filepath.FromSlash(dir), "index.md")
+	}
+
+	indexPath := filepath.Join(absBundle, filepath.Clean(indexRelPath))
+	rel, err := filepath.Rel(absBundle, indexPath)
+	relSlash := strings.ReplaceAll(rel, "\\", "/")
+	if err != nil || relSlash == ".." || strings.HasPrefix(relSlash, "../") {
+		return fmt.Errorf("path traversal denied: parent index %q escapes bundle directory", indexRelPath)
+	}
+	if _, err := ensureWithinRoot(bundleDir, indexPath); err != nil {
+		return err
+	}
+
+	return WithBundleLock(bundleDir, func() error {
+		return updateParentIndexLocked(bundleDir, c)
+	})
+}
+
+func updateParentIndexLocked(bundleDir string, c *Concept) error {
 	absBundle, err := filepath.Abs(bundleDir)
 	if err != nil {
 		return fmt.Errorf("invalid bundle directory: %w", err)
@@ -413,7 +453,27 @@ type SaveOptions struct {
 }
 
 // SaveConcept writes a concept file to disk and optionally executes automatic bookkeeping.
+// The entire mutation (concept file write + parent index update + log entry) executes
+// inside a cross-process bundle write lock, and performs an optimistic concurrency check
+// when persisting an existing concept loaded via LoadBundle.
 func SaveConcept(bundleDir string, c *Concept, opts SaveOptions) error {
+	if c.ID == "" && c.Path != "" {
+		c.ID = strings.TrimSuffix(c.Path, ".md")
+	}
+	if err := ValidateConceptID(c.ID); err != nil {
+		return fmt.Errorf("invalid concept ID: %w", err)
+	}
+
+	if _, err := resolveInBundle(bundleDir, c.Path); err != nil {
+		return err
+	}
+
+	return WithBundleLock(bundleDir, func() error {
+		return saveConceptLocked(bundleDir, c, opts)
+	})
+}
+
+func saveConceptLocked(bundleDir string, c *Concept, opts SaveOptions) error {
 	if c.ID == "" && c.Path != "" {
 		c.ID = strings.TrimSuffix(c.Path, ".md")
 	}
@@ -434,6 +494,17 @@ func SaveConcept(bundleDir string, c *Concept, opts SaveOptions) error {
 	if err := ensureNoForgedHumanVerification(fullPath, c, actor, opts.IsNew); err != nil {
 		return err
 	}
+
+	// Stage 2b: Optimistic Concurrency Check (CAS) when updating a concept loaded from disk
+	if !opts.IsNew && c.sourceHash != "" {
+		// #nosec G304 -- fullPath is validated and confined to bundleDir by resolveInBundle
+		if diskData, readErr := os.ReadFile(fullPath); readErr == nil {
+			if hashConceptContent(string(diskData)) != c.sourceHash {
+				return fmt.Errorf("%w: concept %q was modified on disk since it was loaded", ErrConcurrentModification, c.Path)
+			}
+		}
+	}
+
 	c.Generated = &Generated{
 		By: actor,
 		At: time.Now().UTC().Format(time.RFC3339),
@@ -457,10 +528,14 @@ func SaveConcept(bundleDir string, c *Concept, opts SaveOptions) error {
 	if err := atomicWriteFile(fullPath, []byte(raw), 0o644); err != nil {
 		return fmt.Errorf("failed to write concept: %w", err)
 	}
+	c.RawContent = raw
+	if c.sourceHash != "" {
+		c.sourceHash = hashConceptContent(raw)
+	}
 
 	// Automated Bookkeeping
 	if opts.AutoIndex {
-		if err := UpdateParentIndex(bundleDir, c); err != nil {
+		if err := updateParentIndexLocked(bundleDir, c); err != nil {
 			return fmt.Errorf("failed to update parent index: %w", err)
 		}
 	}
@@ -472,12 +547,51 @@ func SaveConcept(bundleDir string, c *Concept, opts SaveOptions) error {
 			entryType = "Creation"
 			desc = fmt.Sprintf("Documented concept `%s` (%s).", c.Path, c.Title)
 		}
-		if err := AppendLogEntry(bundleDir, entryType, desc); err != nil {
+		if err := appendLogEntryLocked(bundleDir, entryType, desc); err != nil {
 			return fmt.Errorf("failed to append log entry: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// UpdateConcept loads the latest concept state from bundleDir, applies mutateFn,
+// and saves the updated concept (including optional index and log bookkeeping)
+// atomically inside a single cross-process bundle write lock.
+func UpdateConcept(bundleDir, conceptID string, opts SaveOptions, mutateFn func(c *Concept) error) (*Concept, error) {
+	cleanID := strings.TrimSpace(strings.TrimSuffix(conceptID, ".md"))
+	if err := ValidateConceptID(cleanID); err != nil {
+		return nil, fmt.Errorf("invalid concept ID: %w", err)
+	}
+
+	var result *Concept
+	err := WithBundleLock(bundleDir, func() error {
+		b, err := LoadBundle(bundleDir)
+		if err != nil {
+			return fmt.Errorf("failed to load bundle: %w", err)
+		}
+
+		c, ok := b.Concepts[cleanID]
+		if !ok {
+			return fmt.Errorf("%w: '%s' in %s", ErrConceptNotFound, cleanID, bundleDir)
+		}
+
+		updated := *c
+		if err := mutateFn(&updated); err != nil {
+			return err
+		}
+
+		opts.IsNew = false
+		if err := saveConceptLocked(bundleDir, &updated, opts); err != nil {
+			return err
+		}
+		result = &updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // RelateConcepts creates a relative markdown link between source and target concepts.
@@ -497,58 +611,60 @@ func RelateConcepts(bundleDir, sourceID, targetID, relationDesc, actor string) e
 		return fmt.Errorf("cannot relate concept to itself (%s)", sourceID)
 	}
 
-	b, err := LoadBundle(bundleDir)
-	if err != nil {
-		return fmt.Errorf("failed to load bundle: %w", err)
-	}
+	return WithBundleLock(bundleDir, func() error {
+		b, err := LoadBundle(bundleDir)
+		if err != nil {
+			return fmt.Errorf("failed to load bundle: %w", err)
+		}
 
-	srcConcept, ok := b.Concepts[sourceID]
-	if !ok {
-		return fmt.Errorf("source concept '%s' not found", sourceID)
-	}
+		srcConcept, ok := b.Concepts[sourceID]
+		if !ok {
+			return fmt.Errorf("source concept '%s' not found", sourceID)
+		}
 
-	tgtConcept, ok := b.Concepts[targetID]
-	if !ok {
-		return fmt.Errorf("target concept '%s' not found", targetID)
-	}
+		tgtConcept, ok := b.Concepts[targetID]
+		if !ok {
+			return fmt.Errorf("target concept '%s' not found", targetID)
+		}
 
-	// Compute relative path from source's directory to target
-	srcDir := filepath.Dir(srcConcept.Path)
-	relPath, err := filepath.Rel(srcDir, tgtConcept.Path)
-	if err != nil {
-		return fmt.Errorf("failed to compute relative path: %w", err)
-	}
-	relPath = filepath.ToSlash(relPath)
+		// Compute relative path from source's directory to target
+		srcDir := filepath.Dir(srcConcept.Path)
+		relPath, err := filepath.Rel(srcDir, tgtConcept.Path)
+		if err != nil {
+			return fmt.Errorf("failed to compute relative path: %w", err)
+		}
+		relPath = filepath.ToSlash(relPath)
 
-	linkText := tgtConcept.Title
-	if linkText == "" {
-		linkText = filepath.Base(targetID)
-	}
+		linkText := tgtConcept.Title
+		if linkText == "" {
+			linkText = filepath.Base(targetID)
+		}
 
-	relStatement := fmt.Sprintf("\n- Related to [%s](%s)", linkText, relPath)
-	if relationDesc != "" {
-		relStatement = fmt.Sprintf("\n- [%s](%s): %s", linkText, relPath, relationDesc)
-	}
-	if hasRelationship(srcConcept.Body, relPath, relationDesc) {
-		return nil
-	}
+		relStatement := fmt.Sprintf("\n- Related to [%s](%s)", linkText, relPath)
+		if relationDesc != "" {
+			relStatement = fmt.Sprintf("\n- [%s](%s): %s", linkText, relPath, relationDesc)
+		}
+		if hasRelationship(srcConcept.Body, relPath, relationDesc) {
+			return nil
+		}
 
-	srcConcept.Body = insertRelationship(srcConcept.Body, strings.TrimPrefix(relStatement, "\n"))
+		srcConcept.Body = insertRelationship(srcConcept.Body, strings.TrimPrefix(relStatement, "\n"))
 
-	if err := SaveConcept(bundleDir, srcConcept, SaveOptions{
-		IsNew:     false,
-		AutoLog:   false,
-		AutoIndex: false,
-		Actor:     actor,
-	}); err != nil {
-		return fmt.Errorf("failed to save related concept: %w", err)
-	}
+		if err := saveConceptLocked(bundleDir, srcConcept, SaveOptions{
+			IsNew:     false,
+			AutoLog:   false,
+			AutoIndex: false,
+			Actor:     actor,
+		}); err != nil {
+			return fmt.Errorf("failed to save related concept: %w", err)
+		}
 
-	logDesc := fmt.Sprintf("Linked `%s` to `%s`.", srcConcept.Path, tgtConcept.Path)
-	if relationDesc != "" {
-		logDesc = fmt.Sprintf("Linked `%s` to `%s` (%s).", srcConcept.Path, tgtConcept.Path, relationDesc)
-	}
-	return AppendLogEntry(bundleDir, "Update", logDesc)
+		logDesc := fmt.Sprintf("Linked `%s` to `%s`.", srcConcept.Path, tgtConcept.Path)
+		if relationDesc != "" {
+			logDesc = fmt.Sprintf("Linked `%s` to `%s` (%s).", srcConcept.Path, tgtConcept.Path, relationDesc)
+		}
+		return appendLogEntryLocked(bundleDir, "Update", logDesc)
+	})
 }
 
 func hasRelationship(body, relPath, relationDesc string) bool {

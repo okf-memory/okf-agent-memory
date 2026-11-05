@@ -39,6 +39,7 @@ type Concept struct {
 	Body        string               `json:"body"`            // Markdown body after frontmatter
 	RawContent  string               `json:"raw_content,omitempty"`
 	extraBlocks map[string]bool
+	sourceHash  string
 }
 
 // EffectiveGovernance returns the effective governance level of the concept:

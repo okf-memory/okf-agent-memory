@@ -36,6 +36,8 @@ Desktop.ini
 # Scratch and temporary directories
 scratch/
 tmp/
+.okf-write.lock
+.tmp-okf-*
 
 # Website and Landing page (hosted separately)
 /landingpage/

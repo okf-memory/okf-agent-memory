@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -228,44 +229,42 @@ func cmdUpdate(args []string) {
 		os.Exit(1)
 	}
 
-	b, err := okf.LoadBundle(bundleDir)
-	if err != nil {
+	if _, err := okf.LoadBundle(bundleDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading bundle: %v\n", err)
 		os.Exit(2)
 	}
 
-	c, ok := b.Concepts[conceptID]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Concept '%s' not found\n", conceptID)
-		os.Exit(1)
-	}
-
-	if passed["title"] {
-		c.Title = *title
-	}
-	if passed["desc"] {
-		c.Description = *desc
-	}
-	if passed["body"] {
-		c.Body = *body
-	}
-	if passed["type"] {
-		c.Type = strings.TrimSpace(*cType)
-	}
-	if passed["status"] {
-		c.Status = *status
-	}
-	if passed["tags"] {
-		c.Tags = parseMutationTags(*tagsStr)
-	}
-
-	err = okf.SaveConcept(bundleDir, c, okf.SaveOptions{
+	c, err := okf.UpdateConcept(bundleDir, conceptID, okf.SaveOptions{
 		IsNew:     false,
 		AutoLog:   !*noLog,
 		AutoIndex: !*noIndex,
 		Actor:     *actor,
+	}, func(c *okf.Concept) error {
+		if passed["title"] {
+			c.Title = *title
+		}
+		if passed["desc"] {
+			c.Description = *desc
+		}
+		if passed["body"] {
+			c.Body = *body
+		}
+		if passed["type"] {
+			c.Type = strings.TrimSpace(*cType)
+		}
+		if passed["status"] {
+			c.Status = *status
+		}
+		if passed["tags"] {
+			c.Tags = parseMutationTags(*tagsStr)
+		}
+		return nil
 	})
 	if err != nil {
+		if errors.Is(err, okf.ErrConceptNotFound) {
+			fmt.Fprintf(os.Stderr, "Concept '%s' not found\n", conceptID)
+			os.Exit(1)
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

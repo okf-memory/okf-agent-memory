@@ -1,4 +1,5 @@
 ## 2026-11-05
+* **Update**: Updated concept `architecture/security-boundaries.md`.
 * **Update**: Updated concept `architecture/zero-knowledge-vault-sync.md`.
 
 ## 2026-10-29

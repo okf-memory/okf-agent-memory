@@ -400,8 +400,10 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 				ID:         id,
 				Path:       rel,
 				RawContent: content,
+				sourceHash: hashConceptContent(content),
 			}
 		} else {
+			c.sourceHash = hashConceptContent(content)
 			b.Concepts[c.ID] = c
 		}
 		return nil
