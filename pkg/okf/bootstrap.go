@@ -51,6 +51,7 @@ type BootstrapOptions struct {
 	InstallSkill      bool
 	InstallAgentsMD   bool
 	OverwriteAgentsMD bool
+	InstallSymlinks   bool
 	InstallMakefile   bool
 	InstallBundle     bool
 }
@@ -61,6 +62,7 @@ func DefaultBootstrapOptions() BootstrapOptions {
 		InstallSkill:      true,
 		InstallAgentsMD:   true,
 		OverwriteAgentsMD: false,
+		InstallSymlinks:   true,
 		InstallMakefile:   true,
 		InstallBundle:     true,
 	}
@@ -159,7 +161,14 @@ func Bootstrap(targetDir string, opts BootstrapOptions) error {
 		}
 	}
 
-	// 4. Install Makefile
+	// 4. Create SSoT Tool Symlinks (CLAUDE.md, .cursorrules, .windsurfrules, .github/copilot-instructions.md)
+	if opts.InstallSymlinks && opts.InstallAgentsMD {
+		if _, err := CreateToolSymlinks(targetDir, false); err != nil {
+			return fmt.Errorf("failed to create tool symlinks: %w", err)
+		}
+	}
+
+	// 5. Install Makefile
 	if opts.InstallMakefile {
 		makefilePath := filepath.Join(targetDir, "Makefile")
 		if _, err := os.Stat(makefilePath); os.IsNotExist(err) {

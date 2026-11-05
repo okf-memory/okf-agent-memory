@@ -251,6 +251,7 @@ okf bootstrap [target-dir] \
   [--overwrite-agents-md] \
   [--no-skill] \
   [--no-agents-md] \
+  [--no-symlinks] \
   [--no-makefile] \
   [--no-bundle]
 ```
@@ -260,6 +261,7 @@ okf bootstrap [target-dir] \
   * `--overwrite-agents-md`: Overwrite existing `AGENTS.md` instead of non-destructive smart-appending delimited section.
   * `--no-skill`: Skip installing `.agents/skills/okf-memory/`.
   * `--no-agents-md`: Skip creating/updating `AGENTS.md`.
+  * `--no-symlinks`: Skip creating SSoT tool symlinks (`CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `.github/copilot-instructions.md`).
   * `--no-makefile`: Skip installing convenience `Makefile`.
   * `--no-bundle`: Skip initializing `knowledge/` scaffold.
 

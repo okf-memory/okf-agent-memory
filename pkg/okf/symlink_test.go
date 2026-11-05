@@ -62,3 +62,26 @@ func TestCreateAndCheckToolSymlinks(t *testing.T) {
 		t.Errorf("expected force recreate to succeed, got: %v", err)
 	}
 }
+
+func TestIsGitSymlinkStub(t *testing.T) {
+	tempDir := t.TempDir()
+
+	stubPath := filepath.Join(tempDir, "CLAUDE.md")
+	if err := os.WriteFile(stubPath, []byte("AGENTS.md\n"), 0o644); err != nil {
+		t.Fatalf("write stub: %v", err)
+	}
+	if !isGitSymlinkStub(stubPath, "AGENTS.md") {
+		t.Errorf("expected stub pointing to AGENTS.md to be recognized")
+	}
+	if isGitSymlinkStub(stubPath, "../AGENTS.md") {
+		t.Errorf("expected mismatched target to return false")
+	}
+
+	nestedStub := filepath.Join(tempDir, "copilot-instructions.md")
+	if err := os.WriteFile(nestedStub, []byte("..\\AGENTS.md"), 0o644); err != nil {
+		t.Fatalf("write nested stub: %v", err)
+	}
+	if !isGitSymlinkStub(nestedStub, "../AGENTS.md") {
+		t.Errorf("expected backslash stub ..\\AGENTS.md to match ../AGENTS.md")
+	}
+}

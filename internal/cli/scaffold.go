@@ -41,6 +41,7 @@ Flags:
   --no-skill             Skip installing .agents/skills/okf-memory
   --no-agents-md         Skip installing canonical AGENTS.md
   --overwrite-agents-md  Overwrite existing AGENTS.md instead of smart append
+  --no-symlinks          Skip creating SSoT tool symlinks (CLAUDE.md, .cursorrules, etc.)
   --no-makefile          Skip installing Makefile
   --no-bundle            Skip installing knowledge/ scaffold (index.md, log.md)
 
@@ -75,6 +76,7 @@ func cmdBootstrap(args []string) {
 	noSkill := fs.Bool("no-skill", false, "Skip installing .agents/skills/okf-memory")
 	noAgentsMD := fs.Bool("no-agents-md", false, "Skip installing AGENTS.md")
 	overwriteAgentsMD := fs.Bool("overwrite-agents-md", false, "Overwrite existing AGENTS.md instead of smart append")
+	noSymlinks := fs.Bool("no-symlinks", false, "Skip creating SSoT tool symlinks")
 	noMakefile := fs.Bool("no-makefile", false, "Skip installing Makefile")
 	noBundle := fs.Bool("no-bundle", false, "Skip installing knowledge/ scaffold")
 	_ = fs.Parse(subArgs)
@@ -84,6 +86,7 @@ func cmdBootstrap(args []string) {
 		InstallSkill:      !*noSkill,
 		InstallAgentsMD:   !*noAgentsMD,
 		OverwriteAgentsMD: *overwriteAgentsMD,
+		InstallSymlinks:   !*noSymlinks && !*noAgentsMD,
 		InstallMakefile:   !*noMakefile,
 		InstallBundle:     !*noBundle,
 	}
@@ -103,6 +106,9 @@ func cmdBootstrap(args []string) {
 	}
 	if opts.InstallAgentsMD {
 		fmt.Println("  - AGENTS.md")
+	}
+	if opts.InstallSymlinks && opts.InstallAgentsMD {
+		fmt.Println("  - SSoT symlinks (CLAUDE.md, .cursorrules, .windsurfrules, .github/copilot-instructions.md)")
 	}
 	if opts.InstallMakefile {
 		fmt.Println("  - Makefile")

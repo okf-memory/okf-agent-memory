@@ -652,6 +652,17 @@ func TestBootstrap(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(tmpDir, "Makefile")); os.IsNotExist(err) {
 		t.Errorf("Makefile was not created")
 	}
+
+	// Verify SSoT tool symlinks exist and pass CheckToolSymlinks
+	statuses, err := okf.CheckToolSymlinks(tmpDir)
+	if err != nil {
+		t.Fatalf("CheckToolSymlinks failed: %v", err)
+	}
+	for _, st := range statuses {
+		if !st.IsValid {
+			t.Errorf("tool symlink %s (%s) is invalid: %s", st.ToolName, st.ToolPath, st.ErrorMessage)
+		}
+	}
 }
 
 func TestBootstrapExistingAGENTS_SmartAppend(t *testing.T) {
