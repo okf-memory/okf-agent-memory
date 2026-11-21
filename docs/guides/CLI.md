@@ -32,7 +32,7 @@ okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
 * **Arguments**:
   * `bundle-path` (optional, default: `./knowledge` or `.`): Path to the OKF bundle root directory.
 * **Flags**:
-  * `--strict`: Fails the producer gate on broken links, orphans, superseded verifications, and schema discrepancies.
+  * `--strict`: Fails the producer gate on broken links, orphans, superseded verifications, protected concepts (`x-okf-memory-protected: true`) lacking human provenance, and schema discrepancies.
   * `--stale`: Fails the producer gate if any concept has reached or passed its `stale_after` date.
   * `--stale-within <duration>`: Fails the producer gate if any concept will expire within the given relative horizon (e.g. `14d`, `2w`, `3m`).
   * `--drift`: Checks whether concept listings in index files differ from concept descriptions, and verifies that `code_refs` point to valid source paths.
@@ -201,6 +201,7 @@ okf update <concept-id> [bundle-path] \
   [--stale-after <YYYY-MM-DD|timestamp|duration|"">] \
   [--change-note "<Note>"] \
   [--actor "agent/<model>"] \
+  [--allow-protected] \
   [--no-log] \
   [--no-index] \
   [--json]
@@ -215,7 +216,8 @@ okf update <concept-id> [bundle-path] \
   * `--tags`: Replacement comma-separated tags (pass `--tags ""` to clear tags).
   * `--stale-after`: Updated review deadline (`YYYY-MM-DD`, ISO 8601 timestamp, or relative duration such as `90d`). Pass `--stale-after ""` to remove the key; omit it to retain the existing value. Dates in the past succeed with a warning.
   * `--change-note`: Optional short note persisted in `log.md`.
-  * `--actor`: Author provenance identifier (default: `agent/cli`). An actor that is not human (`human`, `human:*`, `human/*`) can keep existing human `verified` entries but cannot add or change them.
+  * `--actor`: Author provenance identifier (default: `agent/cli`). An actor that is not human (`human`, `human:*`, `human/*`) can keep existing human `verified` entries but cannot add or change them, cannot modify concepts declaring `x-okf-memory-protected: true`, and cannot downgrade or clear `governance: hold`.
+  * `--allow-protected`: Human operator CLI override permitting updates to write-protected concepts (`x-okf-memory-protected: true`) or downgrading `governance: hold`. Never exposed via MCP.
   * `--no-log`: Skips appending an entry to `log.md`.
   * `--no-index`: Skips updating the parent `index.md` listing.
   * `--json`: Emit machine-readable JSON result.

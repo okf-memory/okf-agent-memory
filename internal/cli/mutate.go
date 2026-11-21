@@ -67,6 +67,7 @@ Flags:
   --stale-after <value>  Set review deadline (YYYY-MM-DD, ISO timestamp, or duration like '90d'); empty string "" clears
   --change-note <note>   Optional note recorded in knowledge/log.md
   --actor <actor>        Author provenance identifier (default: 'agent/cli')
+  --allow-protected      Allow modifying write-protected concepts (human operator override)
   --no-log               Skip appending to knowledge/log.md
   --no-index             Skip updating parent directory index.md
   --json                 Emit machine-readable JSON result
@@ -242,6 +243,7 @@ func cmdUpdate(args []string) {
 	staleAfter := fs.String("stale-after", "", "Updated review deadline (YYYY-MM-DD, ISO timestamp, duration, or empty to clear)")
 	changeNote := fs.String("change-note", "", "Optional note recorded in log.md")
 	actor := fs.String("actor", "agent/cli", "Author actor string")
+	allowProtected := fs.Bool("allow-protected", false, "Allow modifying write-protected concepts (human operator override)")
 	noLog := fs.Bool("no-log", false, "Skip appending to log.md")
 	noIndex := fs.Bool("no-index", false, "Skip updating parent index.md")
 	jsonOut := fs.Bool("json", false, "Emit JSON result")
@@ -285,12 +287,13 @@ func cmdUpdate(args []string) {
 	}
 
 	c, err := okf.UpdateConcept(bundleDir, conceptID, okf.SaveOptions{
-		IsNew:      false,
-		AutoLog:    !*noLog,
-		AutoIndex:  !*noIndex,
-		Actor:      *actor,
-		ChangeNote: *changeNote,
-		LogDetail:  logDetail,
+		IsNew:          false,
+		AutoLog:        !*noLog,
+		AutoIndex:      !*noIndex,
+		Actor:          *actor,
+		ChangeNote:     *changeNote,
+		LogDetail:      logDetail,
+		AllowProtected: *allowProtected,
 	}, func(c *okf.Concept) error {
 		if passed["title"] {
 			c.Title = *title

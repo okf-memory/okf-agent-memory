@@ -1,6 +1,7 @@
 package okf
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -8,6 +9,11 @@ import (
 	"strings"
 	"time"
 )
+
+// ErrProtectedConcept is returned when a non-human actor attempts to modify a
+// write-protected concept (x-okf-memory-protected: true) or downgrade an
+// existing governance: hold without human identity or explicit AllowProtected override.
+var ErrProtectedConcept = errors.New("concept is write-protected")
 
 // Trust tier constants defined by OKF v0.3 §5.3.
 const (
@@ -121,4 +127,48 @@ func recordedVerifications(fullPath string) []Verified {
 		return nil
 	}
 	return existing.Verified
+}
+
+// HasHumanProvenance reports whether c carries human authorship (generated.by)
+// or a current human verification event (verified.by with verified.at >= generated.at).
+func HasHumanProvenance(c *Concept) bool {
+	if c == nil {
+		return false
+	}
+	if c.Generated != nil && IsHumanIdentity(c.Generated.By) {
+		return true
+	}
+	return TrustTier(c) == TrustTierHumanReviewed
+}
+
+// ensureWriteAllowed enforces write protection on existing concept files on disk:
+//  1. Concepts with x-okf-memory-protected: true reject edits from non-human actors
+//     unless allowProtected is set, including attempts to strip or unset the key.
+//  2. Concepts with governance: hold reject edits from non-human actors that
+//     downgrade or clear governance unless allowProtected is set.
+func ensureWriteAllowed(fullPath string, c *Concept, actor string, allowProtected bool) error {
+	if allowProtected || IsHumanIdentity(actor) {
+		return nil
+	}
+	// #nosec G304 -- fullPath is resolved and confined to the bundle by resolveInBundle
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil
+	}
+	existing, err := ParseConcept("", string(data))
+	if err != nil {
+		return nil
+	}
+	target := c.Path
+	if target == "" {
+		target = c.ID
+	}
+	if existing.IsProtected() {
+		return fmt.Errorf("%w: %q declares %s: true and cannot be modified by non-human actor %q (use --allow-protected via CLI or edit as a human actor)", ErrProtectedConcept, target, ProtectedExtensionKey, actor)
+	}
+	if strings.EqualFold(strings.TrimSpace(existing.Governance), GovernanceHold) &&
+		!strings.EqualFold(strings.TrimSpace(c.Governance), GovernanceHold) {
+		return fmt.Errorf("%w: %q has governance: hold and cannot be downgraded to %q by non-human actor %q (use --allow-protected via CLI or edit as a human actor)", ErrProtectedConcept, target, c.Governance, actor)
+	}
+	return nil
 }

@@ -208,6 +208,13 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: governance '%s' is not constraint|hold|context", at, c.Governance))
 		}
 
+		// Protected concept provenance validation
+		if c.IsProtected() && !HasHumanProvenance(c) {
+			msg := fmt.Sprintf("%s: protected concept (%s: true) lacks human provenance (requires generated.by or current verified.by from a human actor)", at, ProtectedExtensionKey)
+			res.Warnings = append(res.Warnings, msg)
+			res.GateFindings = append(res.GateFindings, msg)
+		}
+
 		// CodeRefs traversal & boundary validation (CWE-22 prevention)
 		for _, ref := range c.CodeRefs {
 			refTrimmed := strings.TrimSpace(ref)

@@ -12,6 +12,10 @@ const (
 	GovernanceContext    = "context"
 )
 
+// ProtectedExtensionKey is the OKF v0.3 extension frontmatter key that marks a
+// concept as write-protected against non-human mutations.
+const ProtectedExtensionKey = "x-okf-memory-protected"
+
 // MaxConceptDirectoryDepth defines the maximum allowed directory nesting level for concept IDs.
 const MaxConceptDirectoryDepth = 8
 
@@ -59,6 +63,34 @@ func (c *Concept) EffectiveGovernance() string {
 		return GovernanceConstraint
 	}
 	return GovernanceContext
+}
+
+// IsProtected reports whether the concept declares x-okf-memory-protected: true
+// in its frontmatter extension fields.
+func (c *Concept) IsProtected() bool {
+	if c == nil || len(c.Extra) == 0 {
+		return false
+	}
+	if val, ok := c.Extra[ProtectedExtensionKey]; ok {
+		return isTruthyFlag(val)
+	}
+	for k, val := range c.Extra {
+		if strings.EqualFold(strings.TrimSpace(k), ProtectedExtensionKey) {
+			return isTruthyFlag(val)
+		}
+	}
+	return false
+}
+
+func isTruthyFlag(v any) bool {
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return strings.EqualFold(strings.TrimSpace(val), "true")
+	default:
+		return false
+	}
 }
 
 // Generated records who authored the concept and when.

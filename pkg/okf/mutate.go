@@ -16,7 +16,7 @@ var newlineReplacer = strings.NewReplacer("\r", " ", "\n", " ")
 
 // frontmatterSmuggleRegex matches reserved frontmatter keys in a body line, including quoted keys
 // and whitespace before the colon, which a plain prefix check would miss.
-var frontmatterSmuggleRegex = regexp.MustCompile(`(?i)^\s*["']?(verified|governance|generated|type|status|superseded_by|code_refs|stale_after)["']?\s*:`)
+var frontmatterSmuggleRegex = regexp.MustCompile(`(?i)^\s*["']?(verified|governance|generated|type|status|superseded_by|code_refs|stale_after|x-okf-memory-protected)["']?\s*:`)
 
 func titleCase(s string) string {
 	if s == "" {
@@ -563,13 +563,14 @@ func sanitizeConceptMetadata(c *Concept) error {
 
 // SaveOptions controls bookkeeping and authoring metadata when persisting a concept.
 type SaveOptions struct {
-	IsNew        bool
-	AutoLog      bool
-	AutoIndex    bool
-	Actor        string
-	ChangeNote   string
-	LogDetail    string
-	LogEntryType string
+	IsNew          bool
+	AutoLog        bool
+	AutoIndex      bool
+	Actor          string
+	ChangeNote     string
+	LogDetail      string
+	LogEntryType   string
+	AllowProtected bool
 }
 
 // SaveConcept writes a concept file to disk and optionally executes automatic bookkeeping.
@@ -610,6 +611,9 @@ func saveConceptLocked(bundleDir string, c *Concept, opts SaveOptions) error {
 	actor := strings.TrimSpace(opts.Actor)
 	if actor == "" {
 		actor = "agent/okf-tool"
+	}
+	if err := ensureWriteAllowed(fullPath, c, actor, opts.AllowProtected); err != nil {
+		return err
 	}
 	if err := ensureNoForgedHumanVerification(fullPath, c, actor, opts.IsNew); err != nil {
 		return err
