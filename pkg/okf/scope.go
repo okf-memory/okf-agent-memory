@@ -165,18 +165,14 @@ func ParseURI(rawURI string) (Scope, string, string, error) {
 }
 
 // IsExternalLink checks whether a link href points to an external or scoped target
-// (vendor @bundle/..., user:..., system:..., or explicit scheme like okf://, https://, etc.)
+// (vendor @bundle/..., user:..., system:..., or any RFC 3986 URI scheme such as https:, http:, mailto:, okf:)
 // and therefore must never cause broken-link failures in local bundle validation.
 func IsExternalLink(href string) bool {
 	norm := strings.TrimSpace(href)
 	if norm == "" {
 		return false
 	}
-	return strings.Contains(norm, "://") ||
-		strings.HasPrefix(norm, "@") ||
-		strings.HasPrefix(norm, "user:") ||
-		strings.HasPrefix(norm, "system:") ||
-		strings.HasPrefix(norm, "mailto:")
+	return hasURIScheme(norm) || strings.HasPrefix(norm, "@")
 }
 
 // ResolveUserDir returns the user-level OKF directory (~/.okf or $OKF_USER_DIR).
@@ -433,9 +429,10 @@ func SearchLayered(opts LayeredSearchOptions) ([]SearchResult, error) {
 // ScopedConceptResult represents the outcome of resolving a concept identifier across scopes.
 type ScopedConceptResult struct {
 	*Concept
-	Bundle    *Bundle `json:"-"`
-	BundleDir string  `json:"-"`
-	Scope     Scope   `json:"scope"`
+	Bundle         *Bundle  `json:"-"`
+	BundleDir      string   `json:"-"`
+	Scope          Scope    `json:"scope"`
+	SupersededFrom []string `json:"superseded_from,omitempty"`
 }
 
 // ResolveScopedConcept resolves a concept identifier across project, vendor, user, and system scopes.
@@ -560,11 +557,20 @@ func ResolveScopedConcept(rawID, defaultBundleDir, vendorRoot, userDir, systemDi
 			return nil, fmt.Errorf("concept '%s' not found in '%s'", conceptID, bundleDir)
 		}
 
+		var supersededFrom []string
+		if strings.EqualFold(c.Status, "deprecated") && strings.TrimSpace(c.SupersededBy) != "" {
+			if sr, srErr := b.ResolveSuperseded(c.ID); srErr == nil && sr != nil && sr.Forwarded && sr.Target != nil {
+				supersededFrom = sr.Chain[:len(sr.Chain)-1]
+				c = sr.Target
+			}
+		}
+
 		return &ScopedConceptResult{
-			Concept:   c,
-			Bundle:    b,
-			BundleDir: bundleDir,
-			Scope:     showScope,
+			Concept:        c,
+			Bundle:         b,
+			BundleDir:      bundleDir,
+			Scope:          showScope,
+			SupersededFrom: supersededFrom,
 		}, nil
 	}
 	return nil, fmt.Errorf("concept '%s' not found in '%s' or user/system scope", conceptID, projectDir)

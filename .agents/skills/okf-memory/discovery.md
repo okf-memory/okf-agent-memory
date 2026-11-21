@@ -166,6 +166,47 @@ okf show architecture/auth knowledge
 }
 ```
 
+### Query Recent Changes (`changes since`)
+For daily worklogs, weekly reviews, standups, or session handovers, list all concepts created, updated, related, deprecated, or deleted within a time range without scanning `knowledge/` or requiring git:
+
+#### Option A: Native MCP Tool (Preferred)
+```json
+// Tool: okf_changes
+{
+  "since": "7d",
+  "limit": 50
+}
+```
+
+#### Option B: CLI Fallback
+```bash
+# Relative duration (consistent with --stale-within: 1d, 2w, 3m, 48h)
+okf changes knowledge --since 7d --json
+
+# Explicit date range (inclusive)
+okf changes knowledge --since 2026-11-01 --until 2026-11-07 --json
+```
+
+**JSON Output Example**:
+```json
+{
+  "since": "2026-11-01T00:00:00Z",
+  "until": "2026-11-07T23:59:59Z",
+  "total": 1,
+  "changes": [
+    {
+      "concept_id": "architecture/auth",
+      "title": "Authentication Architecture",
+      "description": "JWT-based stateless auth mechanism with refresh tokens.",
+      "operations": [
+        {"op": "update", "at": "2026-11-04T12:20:00Z", "note": "Rotated signing key policy"},
+        {"op": "relate", "at": "2026-11-04T12:31:00Z", "target": "decisions/jwt-rotation"}
+      ]
+    }
+  ]
+}
+```
+
 ---
 
 ## 4. Discovery Checklist for Agents

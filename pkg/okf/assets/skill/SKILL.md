@@ -46,9 +46,10 @@ Default bundle: `./knowledge`. For custom paths, pass `bundle="path/to/bundle"`.
 | **Search Knowledge** | `okf_search(query="<query>", limit=3)` | `okf search "<query>" knowledge --limit 3 --json` |
 | **Discover Code Constraints** | `okf_search(for_path="<file-path>")` | `okf search --for-path <file-path> knowledge --json` |
 | **Inspect Concept** | `okf_show(concept_id="<id>")` | `okf show <id> knowledge --json` |
-| **Create Concept** | `okf_create(concept_id="<id>", type="<type>", title="<title>", description="<desc>")` | `okf create <id> knowledge --type <type> --title "<title>" --desc "<desc>" --json` |
-| **Update Concept** | `okf_update(concept_id="<id>", description="<desc>", title="<title>")` | `okf update <id> knowledge --desc "<desc>" --json` |
-| **Relate Concepts** | `okf_relate(source_id="<src>", target_id="<tgt>", description="<prose>")` | `okf relate <src> <tgt> knowledge --desc "<prose>" --json` |
+| **Query Changes** | `okf_changes(since="<date\|dur>", until="<date\|dur>", limit=50)` | `okf changes knowledge --since <date\|dur> --json` |
+| **Create Concept** | `okf_create(concept_id="<id>", type="<type>", title="<title>", description="<desc>", stale_after="<date\|dur>", change_note="<note>")` | `okf create <id> knowledge --type <type> --title "<title>" --desc "<desc>" [--stale-after <val>] [--change-note "<note>"] --json` |
+| **Update Concept** | `okf_update(concept_id="<id>", description="<desc>", stale_after="<date\|dur\|\"\">", change_note="<note>")` | `okf update <id> knowledge --desc "<desc>" [--stale-after <val>] [--change-note "<note>"] --json` |
+| **Relate Concepts** | `okf_relate(source_id="<src>", target_id="<tgt>", description="<prose>", change_note="<note>")` | `okf relate <src> <tgt> knowledge --desc "<prose>" [--change-note "<note>"] --json` |
 | **Validate Bundle** | `okf_validate(strict=true)` | `okf validate knowledge --strict --drift --json` |
 
 ---

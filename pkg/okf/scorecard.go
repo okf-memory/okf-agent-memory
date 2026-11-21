@@ -28,9 +28,9 @@ type ScorecardResult struct {
 //   - If the root bundle index is marked deprecated, maintenance is capped at 0.
 //
 // 2. Human Stewardship & Provenance (35%):
-//   - Verified strictly represents human sign-offs (agents/tools cannot verify).
-//   - Concepts with verified human review (verified.by: human/*) or human authors receive 100 points.
-//   - Unreviewed synthetic agent concepts (generated.by: agent/*) receive 20 points.
+//   - Only current human verifications (verified.at >= generated.at, or all if generated.at is absent) count toward human stewardship.
+//   - Concepts with a current human review (TrustTier == "human-reviewed") or human authors receive 100 points.
+//   - Unreviewed synthetic agent concepts (generated.by: agent/*) or machine-confirmed concepts receive 20 points.
 //   - Unattributed concepts receive 0 points.
 //
 // 3. Graph & Conformance Integrity (30%):
@@ -132,17 +132,10 @@ func ComputeScorecard(b *Bundle) *ScorecardResult {
 	syntheticCount := 0
 
 	for _, c := range b.Concepts {
-		hasHumanVerifier := false
-		for _, v := range c.Verified {
-			if IsHumanIdentity(v.By) {
-				hasHumanVerifier = true
-				break
-			}
-		}
-
+		hasCurrentHumanVerifier := TrustTier(c) == TrustTierHumanReviewed
 		isHumanAuthor := c.Generated != nil && IsHumanIdentity(c.Generated.By)
 
-		if hasHumanVerifier || isHumanAuthor {
+		if hasCurrentHumanVerifier || isHumanAuthor {
 			sumStewardship += 100.0
 			humanCount++
 		} else if c.Generated != nil && strings.TrimSpace(c.Generated.By) != "" {

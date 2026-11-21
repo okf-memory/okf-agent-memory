@@ -12,20 +12,21 @@ import (
 
 // SearchResult represents a scored concept match.
 type SearchResult struct {
-	ConceptID   string   `json:"concept_id"`
-	Title       string   `json:"title"`
-	Type        string   `json:"type"`
-	Description string   `json:"description"`
-	Governance  string   `json:"governance,omitempty"`
-	CodeRefs    []string `json:"code_refs,omitempty"`
-	Score       float64  `json:"score"`
-	MatchedOn   []string `json:"matched_on"`
-	Tags        []string `json:"tags,omitempty"`
-	Inbound     []string `json:"inbound,omitempty"`
-	Outbound    []string `json:"outbound,omitempty"`
-	Scope       Scope    `json:"scope,omitempty"`
-	Priority    int      `json:"priority,omitempty"`
-	Origin      string   `json:"origin,omitempty"`
+	ConceptID      string   `json:"concept_id"`
+	Title          string   `json:"title"`
+	Type           string   `json:"type"`
+	Description    string   `json:"description"`
+	Governance     string   `json:"governance,omitempty"`
+	CodeRefs       []string `json:"code_refs,omitempty"`
+	Score          float64  `json:"score"`
+	MatchedOn      []string `json:"matched_on"`
+	Tags           []string `json:"tags,omitempty"`
+	Inbound        []string `json:"inbound,omitempty"`
+	Outbound       []string `json:"outbound,omitempty"`
+	Scope          Scope    `json:"scope,omitempty"`
+	Priority       int      `json:"priority,omitempty"`
+	Origin         string   `json:"origin,omitempty"`
+	SupersededFrom string   `json:"superseded_from,omitempty"`
 }
 
 func tokenize(s string) []string {
@@ -189,6 +190,8 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 				Outbound:    b.Graph[c.ID],
 			})
 		}
+
+		results = b.forwardSupersededResults(results, opts)
 
 		sort.Slice(results, func(i, j int) bool {
 			rankI := governanceRank(results[i].Governance)
@@ -377,6 +380,8 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 			}
 		}
 
+		results = b.forwardSupersededResults(results, opts)
+
 		sort.Slice(results, func(i, j int) bool {
 			if results[i].Score == results[j].Score {
 				return results[i].ConceptID < results[j].ConceptID
@@ -421,6 +426,8 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 		})
 	}
 
+	results = b.forwardSupersededResults(results, opts)
+
 	sort.Slice(results, func(i, j int) bool {
 		rankI := governanceRank(results[i].Governance)
 		rankJ := governanceRank(results[j].Governance)
@@ -438,6 +445,84 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 	}
 
 	return results, nil
+}
+
+func filterRequestsDeprecated(filterExpr string) bool {
+	if strings.TrimSpace(filterExpr) == "" {
+		return false
+	}
+	preds, err := parseFilterClauses(filterExpr)
+	if err != nil {
+		return false
+	}
+	for _, p := range preds {
+		if p.key == "status" && p.operator == "=" && strings.EqualFold(p.value, "deprecated") {
+			return true
+		}
+		if p.key == "superseded_by" {
+			return true
+		}
+	}
+	return false
+}
+
+// forwardSupersededResults follows superseded_by on deprecated concepts in search results
+// so consumers querying current knowledge receive the replacement concept (OKF v0.3 §5.4).
+// If the filter explicitly asks for deprecated concepts or superseded_by, results are left untouched.
+func (b *Bundle) forwardSupersededResults(results []SearchResult, opts SearchOptions) []SearchResult {
+	if len(results) == 0 || filterRequestsDeprecated(opts.Filter) {
+		return results
+	}
+
+	byID := make(map[string]SearchResult, len(results))
+	order := make([]string, 0, len(results))
+
+	upsert := func(r SearchResult) {
+		if existing, exists := byID[r.ConceptID]; exists {
+			// Prefer a direct match over a forwarded one when scores tie, otherwise keep higher score.
+			if r.Score > existing.Score || (r.Score == existing.Score && existing.SupersededFrom != "" && r.SupersededFrom == "") {
+				byID[r.ConceptID] = r
+			}
+			return
+		}
+		byID[r.ConceptID] = r
+		order = append(order, r.ConceptID)
+	}
+
+	for _, r := range results {
+		c := b.Concepts[r.ConceptID]
+		if c != nil && strings.EqualFold(c.Status, "deprecated") && strings.TrimSpace(c.SupersededBy) != "" {
+			if sr, err := b.ResolveSuperseded(c.ID); err == nil && sr != nil && sr.Forwarded && sr.Target != nil {
+				target := sr.Target
+				forwarded := SearchResult{
+					ConceptID:      target.ID,
+					Title:          target.Title,
+					Type:           target.Type,
+					Description:    target.Description,
+					Governance:     target.EffectiveGovernance(),
+					CodeRefs:       target.CodeRefs,
+					Score:          r.Score,
+					MatchedOn:      r.MatchedOn,
+					Tags:           target.Tags,
+					Inbound:        b.InboundGraph[target.ID],
+					Outbound:       b.Graph[target.ID],
+					Scope:          r.Scope,
+					Priority:       r.Priority,
+					Origin:         r.Origin,
+					SupersededFrom: c.ID,
+				}
+				upsert(forwarded)
+				continue
+			}
+		}
+		upsert(r)
+	}
+
+	out := make([]SearchResult, 0, len(order))
+	for _, id := range order {
+		out = append(out, byID[id])
+	}
+	return out
 }
 
 // matchCodeRef tests whether target matches a code reference pattern.

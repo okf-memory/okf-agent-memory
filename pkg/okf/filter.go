@@ -181,6 +181,8 @@ func (c *Concept) evalPredicate(p filterPredicate) bool {
 		return compareString(c.Description, p.operator, p.value, isNullCheck)
 	case "status":
 		return compareString(c.Status, p.operator, p.value, isNullCheck)
+	case "superseded_by":
+		return compareString(c.SupersededBy, p.operator, p.value, isNullCheck)
 	case "governance":
 		return compareString(c.EffectiveGovernance(), p.operator, p.value, isNullCheck)
 	case "id":

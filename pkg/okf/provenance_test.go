@@ -26,6 +26,10 @@ func TestIsHumanIdentity(t *testing.T) {
 		{"human-reviewer", false},
 		{"humans:lead", false},
 		{"not-human:lead", false},
+		{"team:platform", false},
+		{"team:human", false},
+		{"team:human-reviewers", false},
+		{"process:human-check", false},
 	}
 	for _, tt := range tests {
 		if got := okf.IsHumanIdentity(tt.id); got != tt.want {

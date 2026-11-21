@@ -163,6 +163,8 @@ okf create <concept-id> [bundle-path] \
   [--body "<Markdown body>"] \
   [--status draft|stable|deprecated] \
   [--tags "tag1,tag2"] \
+  [--stale-after <YYYY-MM-DD|timestamp|duration>] \
+  [--change-note "<Note>"] \
   [--actor "agent/<model>"] \
   [--no-log] \
   [--no-index] \
@@ -176,6 +178,8 @@ okf create <concept-id> [bundle-path] \
   * `--body`: Markdown content following frontmatter.
   * `--status`: Lifecycle status (`draft`, `stable`, or `deprecated`; default `stable`).
   * `--tags`: Comma-separated list of tags.
+  * `--stale-after`: Optional review deadline as `YYYY-MM-DD`, ISO 8601 timestamp (normalized to UTC date), or relative duration (`14d`, `2w`, `3m`, `90d`). Always persisted as `YYYY-MM-DD`. Dates in the past succeed with a warning.
+  * `--change-note`: Optional short note persisted in `log.md`.
   * `--actor`: Author string (default: `agent/cli`). An actor that is not human (`human`, `human:*`, `human/*`) cannot add human `verified` entries.
   * `--no-log`: Skips appending an entry to `log.md`.
   * `--no-index`: Skips updating the parent `index.md` listing.
@@ -194,6 +198,8 @@ okf update <concept-id> [bundle-path] \
   [--type <Type>] \
   [--status draft|stable|deprecated] \
   [--tags "tag1,tag2"] \
+  [--stale-after <YYYY-MM-DD|timestamp|duration|"">] \
+  [--change-note "<Note>"] \
   [--actor "agent/<model>"] \
   [--no-log] \
   [--no-index] \
@@ -207,12 +213,14 @@ okf update <concept-id> [bundle-path] \
   * `--type`: Updated non-empty concept type.
   * `--status`: Updated lifecycle status (`draft`, `stable`, or `deprecated`).
   * `--tags`: Replacement comma-separated tags (pass `--tags ""` to clear tags).
+  * `--stale-after`: Updated review deadline (`YYYY-MM-DD`, ISO 8601 timestamp, or relative duration such as `90d`). Pass `--stale-after ""` to remove the key; omit it to retain the existing value. Dates in the past succeed with a warning.
+  * `--change-note`: Optional short note persisted in `log.md`.
   * `--actor`: Author provenance identifier (default: `agent/cli`). An actor that is not human (`human`, `human:*`, `human/*`) can keep existing human `verified` entries but cannot add or change them.
   * `--no-log`: Skips appending an entry to `log.md`.
   * `--no-index`: Skips updating the parent `index.md` listing.
   * `--json`: Emit machine-readable JSON result.
 
-Only supplied flags change the existing concept. `--type` requires a non-empty value, `--status` accepts only `draft`, `stable`, or `deprecated`, and `--tags` replaces the current tags after trimming each comma-separated value. Pass `--tags ""` to clear all tags; omit it to retain them.
+Only supplied flags change the existing concept. `--type` requires a non-empty value, `--status` accepts only `draft`, `stable`, or `deprecated`, `--tags` replaces the current tags after trimming each comma-separated value, and `--stale-after` records `set stale_after <date>` or `cleared stale_after` in `log.md`. Pass `--tags ""` or `--stale-after ""` to clear them; omit them to retain existing values.
 
 ---
 
@@ -221,12 +229,40 @@ Only supplied flags change the existing concept. `--type` requires a non-empty v
 Adds a relative markdown link between two concepts, preventing link fragmentation and orphans.
 
 ```bash
-okf relate <source-id> <target-id> [bundle-path] [--desc "<context>"] [--actor <actor>] [--json]
+okf relate <source-id> <target-id> [bundle-path] [--desc "<context>"] [--change-note "<note>"] [--actor <actor>] [--no-log] [--json]
 ```
 
 * **Example**:
   ```bash
   okf relate architecture/tooling architecture/layers knowledge --desc "Tooling implements the 5-layer architecture"
+  ```
+
+---
+
+### 6b. `changes`
+
+Queries concepts created, updated, related, deprecated, or deleted within a time range by combining `log.md` history with bundle concept metadata. Works in non-git bundles and supports legacy date-only `log.md` files.
+
+```bash
+okf changes [bundle-path] --since <date|duration> [--until <date|duration>] [--limit <N>] [--json]
+```
+
+* **Arguments**:
+  * `bundle-path` (optional, default: `./knowledge` or `.`).
+* **Flags**:
+  * `--since <value>` (required): Start of time range (inclusive) as `YYYY-MM-DD`, ISO 8601 timestamp, or relative duration (`1d`, `2w`, `3m`, `48h`).
+  * `--until <value>` (optional, default: now): End of time range (inclusive) in the same formats.
+  * `--limit <N>` (default: `50`, max: `500`): Maximum number of concepts to return (newest first).
+  * `--json`: Emits the exact same structured JSON object as MCP `okf_changes`.
+* **Exit Codes**:
+  * `0`: Success.
+  * `1`: Missing or invalid flags/arguments.
+  * `2`: Bundle load failure.
+
+* **Example**:
+  ```bash
+  okf changes knowledge --since 7d --json
+  okf changes --since 2026-11-01 --until 2026-11-07
   ```
 
 ---
@@ -281,10 +317,11 @@ okf mcp [bundle-path]
 | :--- | :--- | :--- |
 | `okf_search` | `query` (string, opt), `for_path` (string, opt), `limit` (int) | Query memory corpus via BM25 ranking, or find concepts governing a file via `code_refs`. |
 | `okf_show` | `concept_id` (string) | Fetch concept frontmatter, body, and graph links. |
-| `okf_create` | `concept_id`, `type`, `title`, `description`, `body`, `status`, `tags` | Create concept with automatic index & log bookkeeping; status defaults to `stable`. |
-| `okf_update` | `concept_id`, `type`, `status`, `tags`, `title`, `description`, `body` | Update only supplied fields and record in log.md; empty `tags` array clears tags. |
-| `okf_relate` | `source_id`, `target_id`, `description` | Link two concepts together. |
-| `okf_validate` | `strict` (bool), `drift` (bool) | Verify bundle conformance. |
+| `okf_changes` | `since` (string), `until` (string, opt), `limit` (int, opt), `bundle` (string, opt) | Query concepts created, updated, related, deprecated, or deleted in a time range. |
+| `okf_create` | `concept_id`, `type`, `title`, `description`, `body`, `status`, `tags`, `stale_after`, `change_note` | Create concept with automatic index & log bookkeeping; status defaults to `stable`. |
+| `okf_update` | `concept_id`, `type`, `status`, `tags`, `title`, `description`, `body`, `stale_after`, `change_note` | Update only supplied fields and record in log.md; empty `tags` array clears tags; empty `stale_after` clears review date. |
+| `okf_relate` | `source_id`, `target_id`, `description`, `change_note` | Link two concepts together. |
+| `okf_validate` | `strict` (bool), `stale` (bool), `stale_within` (string) | Verify bundle conformance. |
 
 MCP `tags` is an array of strings (max 50 chars per tag), such as `["auth", "security"]`. Both MCP tools accept lifecycle statuses `draft`, `stable`, and `deprecated`; updating with no `status` retains the existing value.
 

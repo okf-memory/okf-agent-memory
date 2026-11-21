@@ -714,7 +714,7 @@ func TestBootstrapExistingAGENTS_SmartAppend(t *testing.T) {
 
 func TestValidateTrustOrdering(t *testing.T) {
 	b := &okf.Bundle{
-		DeclaredVer: "0.2",
+		DeclaredVer: "0.3",
 		Concepts: map[string]*okf.Concept{
 			"test/concept": {
 				ID:   "test/concept",
@@ -727,7 +727,7 @@ func TestValidateTrustOrdering(t *testing.T) {
 				Verified: []okf.Verified{
 					{
 						By: "human:reviewer@domain.dev",
-						At: "2026-08-10T12:00:00Z", // Predates generated.at
+						At: "2026-08-10T12:00:00Z", // Historical: predates generated.at
 					},
 				},
 			},
@@ -736,32 +736,36 @@ func TestValidateTrustOrdering(t *testing.T) {
 		Orphans:     []string{},
 	}
 
-	// Without --strict: warnings issued, but gate passed
+	// OKF v0.3 §5.3: historical verifications stay as audit history without gate findings,
+	// and do not count toward the active trust tier.
+	if got := okf.TrustTier(b.Concepts["test/concept"]); got != okf.TrustTierUnverified {
+		t.Errorf("Expected TrustTier %q for historical-only verification, got %q", okf.TrustTierUnverified, got)
+	}
+
 	res := okf.Validate(b, okf.ValidateOptions{Strict: false})
-	if !res.IsConformant {
-		t.Errorf("Expected bundle to be conformant")
+	if !res.IsConformant || !res.GatePassed {
+		t.Errorf("Expected bundle to be conformant and pass gate without --strict")
 	}
-	if !res.GatePassed {
-		t.Errorf("Expected gate to pass without --strict")
-	}
-	if len(res.GateFindings) != 1 {
-		t.Errorf("Expected 1 gate finding for superseded verification, got %d", len(res.GateFindings))
+	if len(res.GateFindings) != 0 {
+		t.Errorf("Expected 0 gate findings for historical verification, got %d: %v", len(res.GateFindings), res.GateFindings)
 	}
 
-	// With --strict: producer gate must fail
 	resStrict := okf.Validate(b, okf.ValidateOptions{Strict: true})
-	if !resStrict.IsConformant {
-		t.Errorf("Expected bundle to still be syntactically conformant")
-	}
-	if resStrict.GatePassed {
-		t.Errorf("Expected gate to fail under --strict due to superseded verification")
+	if !resStrict.IsConformant || !resStrict.GatePassed {
+		t.Errorf("Expected --strict gate to pass when only historical verification exists, got findings: %v", resStrict.GateFindings)
 	}
 
-	// Now fix verification date: verified after generated
-	b.Concepts["test/concept"].Verified[0].At = "2026-09-05T14:00:00Z"
+	// Append a newer human verification: historical entry stays, trust tier upgrades to human-reviewed
+	b.Concepts["test/concept"].Verified = append(b.Concepts["test/concept"].Verified, okf.Verified{
+		By: "human:reviewer@domain.dev",
+		At: "2026-09-05T14:00:00Z",
+	})
+	if got := okf.TrustTier(b.Concepts["test/concept"]); got != okf.TrustTierHumanReviewed {
+		t.Errorf("Expected TrustTier %q with current human verification, got %q", okf.TrustTierHumanReviewed, got)
+	}
 	resFixed := okf.Validate(b, okf.ValidateOptions{Strict: true})
-	if !resFixed.GatePassed {
-		t.Errorf("Expected gate to pass under --strict when verification is up-to-date, got findings: %v", resFixed.GateFindings)
+	if !resFixed.GatePassed || len(resFixed.GateFindings) != 0 {
+		t.Errorf("Expected gate to pass under --strict with historical + current verification, got findings: %v", resFixed.GateFindings)
 	}
 }
 

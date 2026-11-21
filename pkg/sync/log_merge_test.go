@@ -68,3 +68,38 @@ func TestMergeLogContent_UnionsEntriesByDateHeading(t *testing.T) {
 		t.Errorf("headings not in descending order: 17=%d, 16=%d, 15=%d", idx17, idx16, idx15)
 	}
 }
+
+func TestMergeLogContent_TimestampedAndChangeNoteEntries(t *testing.T) {
+	localLog := `# Knowledge Log
+
+## 2026-11-04
+* **Update** [2026-11-04T12:20:00Z]: Updated concept ` + "`people/stephan-k.md`" + ` (set stale_after 2027-03-01). — Linear-Team korrigiert
+* **Creation**: Documented concept ` + "`legacy/old.md`" + ` (Legacy).
+`
+
+	remoteLog := `# Knowledge Log
+
+## 2026-11-04
+* **Update** [2026-11-04T12:20:00Z]: Updated concept ` + "`people/stephan-k.md`" + ` (set stale_after 2027-03-01). — Linear-Team korrigiert
+* **Relate** [2026-11-04T12:31:00Z]: Linked ` + "`people/stephan-k.md`" + ` to ` + "`processes/bug-handling.md`" + `. — Added triage ownership
+`
+
+	merged, err := sync.MergeLogContent([]byte(localLog), []byte(remoteLog))
+	if err != nil {
+		t.Fatalf("unexpected MergeLogContent error: %v", err)
+	}
+
+	mergedStr := string(merged)
+	if strings.Count(mergedStr, "## 2026-11-04") != 1 {
+		t.Fatalf("expected 1 date heading, got:\n%s", mergedStr)
+	}
+	if strings.Count(mergedStr, "Linear-Team korrigiert") != 1 {
+		t.Errorf("expected timestamped entry with change_note to be deduplicated, got:\n%s", mergedStr)
+	}
+	if !strings.Contains(mergedStr, "Added triage ownership") {
+		t.Errorf("missing remote relate entry with change_note:\n%s", mergedStr)
+	}
+	if !strings.Contains(mergedStr, "* **Creation**: Documented concept `legacy/old.md` (Legacy).") {
+		t.Errorf("missing legacy date-only entry:\n%s", mergedStr)
+	}
+}

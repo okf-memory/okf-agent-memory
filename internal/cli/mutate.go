@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/okf-memory/okf-agent-memory/pkg/okf"
 )
@@ -33,14 +34,16 @@ Flags:
   --body <body>          Markdown body content
   --status <status>      Concept status: draft, stable, or deprecated [default: stable]
   --tags <tags>          Comma-separated list of searchable tags (e.g. 'auth,security,jwt')
+  --stale-after <value>  Review deadline: YYYY-MM-DD, ISO timestamp, or relative duration (e.g. '90d', '2w', '3m')
+  --change-note <note>   Optional note recorded in knowledge/log.md
   --actor <actor>        Author provenance identifier (default: 'agent/cli')
   --no-log               Skip appending an entry to knowledge/log.md
   --no-index             Skip updating immediate parent directory index.md
   --json                 Emit machine-readable JSON result
 
 Examples:
-  okf create decisions/adr-001 knowledge --type Decision --title "Database Architecture" --desc "Use PostgreSQL with connection pooling."
-  okf create architecture/caching --type Architecture --desc "Redis cluster configuration." --json
+  okf create decisions/adr-001 knowledge --type Decision --title "Database Architecture" --desc "Use PostgreSQL with connection pooling." --stale-after 90d
+  okf create architecture/caching --type Architecture --desc "Redis cluster configuration." --change-note "Initial cache topology" --json
 `)
 }
 
@@ -61,13 +64,17 @@ Flags:
   --type <type>          Update the concept type
   --status <status>      Set concept status: draft, stable, or deprecated
   --tags <tags>          Replace tags with comma-separated list (empty string clears)
+  --stale-after <value>  Set review deadline (YYYY-MM-DD, ISO timestamp, or duration like '90d'); empty string "" clears
+  --change-note <note>   Optional note recorded in knowledge/log.md
   --actor <actor>        Author provenance identifier (default: 'agent/cli')
   --no-log               Skip appending to knowledge/log.md
   --no-index             Skip updating parent directory index.md
   --json                 Emit machine-readable JSON result
 
 Examples:
-  okf update architecture/database knowledge --desc "Migrated from SQLite to PostgreSQL 16 on RDS."
+  okf update architecture/database knowledge --desc "Migrated from SQLite to PostgreSQL 16 on RDS." --change-note "RDS migration"
+  okf update decisions/adr-001 --stale-after 90d
+  okf update decisions/adr-001 --stale-after ""
   okf update decisions/adr-001 --status deprecated --desc "Superseded by adr-008." --json
 `)
 }
@@ -85,6 +92,7 @@ Arguments:
 
 Flags:
   --desc <prose>         Semantic description of the relationship (required)
+  --change-note <note>   Optional note recorded in knowledge/log.md
   --actor <actor>        Author provenance identifier (default: 'agent/cli')
   --no-log               Skip appending to knowledge/log.md
   --json                 Emit machine-readable JSON result
@@ -122,6 +130,8 @@ func cmdCreate(args []string) {
 	body := fs.String("body", "", "Concept body content")
 	status := fs.String("status", "stable", "Concept status (draft, stable, deprecated)")
 	tagsStr := fs.String("tags", "", "Comma-separated tags")
+	staleAfter := fs.String("stale-after", "", "Review deadline (YYYY-MM-DD, ISO timestamp, or duration like 90d)")
+	changeNote := fs.String("change-note", "", "Optional note recorded in log.md")
 	actor := fs.String("actor", "agent/cli", "Author actor string")
 	noLog := fs.Bool("no-log", false, "Skip appending to log.md")
 	noIndex := fs.Bool("no-index", false, "Skip updating parent index.md")
@@ -136,6 +146,17 @@ func cmdCreate(args []string) {
 	if !okf.IsValidConceptStatus(*status) {
 		fmt.Fprintf(os.Stderr, "Invalid status %q: expected draft, stable, or deprecated\n", *status)
 		os.Exit(1)
+	}
+
+	var resolvedStale, staleWarning, logDetail string
+	if *staleAfter != "" {
+		var err error
+		resolvedStale, staleWarning, err = okf.ResolveStaleAfter(*staleAfter, time.Now().UTC())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		logDetail = fmt.Sprintf("set stale_after %s", resolvedStale)
 	}
 
 	titleVal := *title
@@ -153,26 +174,37 @@ func cmdCreate(args []string) {
 		Description: *desc,
 		Status:      *status,
 		Tags:        tags,
+		StaleAfter:  resolvedStale,
 		Body:        *body,
 	}
 
 	err := okf.SaveConcept(bundleDir, c, okf.SaveOptions{
-		IsNew:     true,
-		AutoLog:   !*noLog,
-		AutoIndex: !*noIndex,
-		Actor:     *actor,
+		IsNew:      true,
+		AutoLog:    !*noLog,
+		AutoIndex:  !*noIndex,
+		Actor:      *actor,
+		ChangeNote: *changeNote,
+		LogDetail:  logDetail,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
+	if staleWarning != "" {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", staleWarning)
+	}
+
 	if *jsonOut {
-		data, _ := json.Marshal(map[string]string{
+		payload := map[string]string{
 			"status":     "success",
 			"concept_id": conceptID,
 			"path":       c.Path,
-		})
+		}
+		if staleWarning != "" {
+			payload["warning"] = staleWarning
+		}
+		data, _ := json.Marshal(payload)
 		fmt.Println(string(data))
 	} else {
 		fmt.Printf("Created concept '%s' (%s) in '%s'\n", c.Path, c.Title, bundleDir)
@@ -207,6 +239,8 @@ func cmdUpdate(args []string) {
 	cType := fs.String("type", "", "Updated concept type")
 	status := fs.String("status", "", "Updated concept status (draft, stable, deprecated)")
 	tagsStr := fs.String("tags", "", "Replacement comma-separated tags (empty clears)")
+	staleAfter := fs.String("stale-after", "", "Updated review deadline (YYYY-MM-DD, ISO timestamp, duration, or empty to clear)")
+	changeNote := fs.String("change-note", "", "Optional note recorded in log.md")
 	actor := fs.String("actor", "agent/cli", "Author actor string")
 	noLog := fs.Bool("no-log", false, "Skip appending to log.md")
 	noIndex := fs.Bool("no-index", false, "Skip updating parent index.md")
@@ -229,16 +263,34 @@ func cmdUpdate(args []string) {
 		os.Exit(1)
 	}
 
+	var resolvedStale, staleWarning, logDetail string
+	if passed["stale-after"] {
+		if *staleAfter == "" {
+			resolvedStale = ""
+			logDetail = "cleared stale_after"
+		} else {
+			var err error
+			resolvedStale, staleWarning, err = okf.ResolveStaleAfter(*staleAfter, time.Now().UTC())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			logDetail = fmt.Sprintf("set stale_after %s", resolvedStale)
+		}
+	}
+
 	if _, err := okf.LoadBundle(bundleDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading bundle: %v\n", err)
 		os.Exit(2)
 	}
 
 	c, err := okf.UpdateConcept(bundleDir, conceptID, okf.SaveOptions{
-		IsNew:     false,
-		AutoLog:   !*noLog,
-		AutoIndex: !*noIndex,
-		Actor:     *actor,
+		IsNew:      false,
+		AutoLog:    !*noLog,
+		AutoIndex:  !*noIndex,
+		Actor:      *actor,
+		ChangeNote: *changeNote,
+		LogDetail:  logDetail,
 	}, func(c *okf.Concept) error {
 		if passed["title"] {
 			c.Title = *title
@@ -258,6 +310,9 @@ func cmdUpdate(args []string) {
 		if passed["tags"] {
 			c.Tags = parseMutationTags(*tagsStr)
 		}
+		if passed["stale-after"] {
+			c.StaleAfter = resolvedStale
+		}
 		return nil
 	})
 	if err != nil {
@@ -269,12 +324,20 @@ func cmdUpdate(args []string) {
 		os.Exit(1)
 	}
 
+	if staleWarning != "" {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", staleWarning)
+	}
+
 	if *jsonOut {
-		data, _ := json.Marshal(map[string]string{
+		payload := map[string]string{
 			"status":     "success",
 			"concept_id": conceptID,
 			"path":       c.Path,
-		})
+		}
+		if staleWarning != "" {
+			payload["warning"] = staleWarning
+		}
+		data, _ := json.Marshal(payload)
 		fmt.Println(string(data))
 	} else {
 		fmt.Printf("Updated concept '%s' in '%s'\n", c.Path, bundleDir)
@@ -310,13 +373,19 @@ func cmdRelate(args []string) {
 
 	fs := flag.NewFlagSet("relate", flag.ExitOnError)
 	desc := fs.String("desc", "", "Description explaining the relationship")
+	changeNote := fs.String("change-note", "", "Optional note recorded in log.md")
 	actor := fs.String("actor", "agent/cli", "Author actor string")
+	noLog := fs.Bool("no-log", false, "Skip appending to log.md")
 	jsonOut := fs.Bool("json", false, "Emit JSON result")
 
 	bundleDir, flagArgs := defaultBundle(subArgs)
 	_ = fs.Parse(flagArgs)
 
-	err := okf.RelateConcepts(bundleDir, sourceID, targetID, *desc, *actor)
+	err := okf.RelateConceptsWithOptions(bundleDir, sourceID, targetID, *desc, okf.RelateOptions{
+		Actor:      *actor,
+		AutoLog:    !*noLog,
+		ChangeNote: *changeNote,
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

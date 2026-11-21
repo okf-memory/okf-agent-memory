@@ -2,6 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -76,7 +79,7 @@ func TestPrintValidationOutput_StrictTaxonomy(t *testing.T) {
 	// Strict mode: GateFindings, BrokenLinks, and Orphans must print as 'gate  ' and be counted in 'gate finding(s)'
 	gateFindings := []string{
 		"concept_a: missing 'by' field in 'generated'",
-		"concept_b: verified date predates generated date",
+		"concept_b: governance 'invalid' is not constraint|hold|context",
 	}
 	brokenLinks := []okf.BrokenLink{
 		{SourceConcept: "c1", TargetHref: "missing.md", Reason: "not found"},
@@ -178,4 +181,119 @@ func TestPrintValidationOutput_StrictGateFailedConformant(t *testing.T) {
 	if !strings.Contains(out, expectedSummary) {
 		t.Errorf("gate failure summary mismatch.\nWant substring: %s\nGot output:\n%s", expectedSummary, out)
 	}
+}
+
+func TestValidateCLI_TrustTierTransitions(t *testing.T) {
+	validateCmd, ok := FindCommand("validate")
+	if !ok {
+		t.Fatalf("validate command not registered")
+	}
+
+	writeBundle := func(t *testing.T, conceptContent string) string {
+		t.Helper()
+		dir := t.TempDir()
+		rootIndex := "---\nokf_version: \"0.3\"\n---\n\n# Bundle\n\n* [Policy](policy.md) - Policy doc.\n"
+		if err := os.WriteFile(filepath.Join(dir, "index.md"), []byte(rootIndex), 0o644); err != nil {
+			t.Fatalf("write index.md: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "policy.md"), []byte(conceptContent), 0o644); err != nil {
+			t.Fatalf("write policy.md: %v", err)
+		}
+		return dir
+	}
+
+	runValidateJSON := func(t *testing.T, dir string) struct {
+		IsConformant bool     `json:"is_conformant"`
+		GatePassed   bool     `json:"gate_passed"`
+		Errors       []string `json:"errors"`
+		GateFindings []string `json:"gate_findings"`
+		Scorecard    *struct {
+			Stewardship int `json:"stewardship"`
+		} `json:"scorecard"`
+	} {
+		t.Helper()
+		out := captureOutput(func() {
+			validateCmd.Run([]string{dir, "--strict", "--scorecard", "--json"})
+		})
+		var res struct {
+			IsConformant bool     `json:"is_conformant"`
+			GatePassed   bool     `json:"gate_passed"`
+			Errors       []string `json:"errors"`
+			GateFindings []string `json:"gate_findings"`
+			Scorecard    *struct {
+				Stewardship int `json:"stewardship"`
+			} `json:"scorecard"`
+		}
+		if err := json.Unmarshal([]byte(out), &res); err != nil {
+			t.Fatalf("unmarshal validate json: %v\noutput:\n%s", err, out)
+		}
+		return res
+	}
+
+	t.Run("historical human sign-off after agent edit passes strict gate with reduced stewardship", func(t *testing.T) {
+		dir := writeBundle(t, `---
+type: Policy
+title: Historical Review
+description: Policy doc.
+generated: { by: "reference_agent/gemini-2.5-pro", at: "2026-06-25T10:00:00Z" }
+verified:
+  - { by: "human:alice", at: "2026-06-20T09:00:00Z" }
+---
+# Policy
+`)
+		res := runValidateJSON(t, dir)
+		if !res.IsConformant || !res.GatePassed {
+			t.Fatalf("expected strict gate pass, got conformant=%v gate=%v errors=%v findings=%v",
+				res.IsConformant, res.GatePassed, res.Errors, res.GateFindings)
+		}
+		if len(res.GateFindings) != 0 {
+			t.Errorf("expected 0 gate findings for historical verification, got %v", res.GateFindings)
+		}
+		if res.Scorecard == nil || res.Scorecard.Stewardship != 20 {
+			t.Errorf("expected Stewardship=20 for historical-only human review, got %+v", res.Scorecard)
+		}
+	})
+
+	t.Run("team actor passes strict gate without human stewardship", func(t *testing.T) {
+		dir := writeBundle(t, `---
+type: Policy
+title: Team Review
+description: Policy doc.
+generated: { by: "reference_agent/gemini-2.5-pro", at: "2026-06-20T09:00:00Z" }
+verified:
+  - { by: "team:platform", at: "2026-06-25T10:00:00Z" }
+---
+# Policy
+`)
+		res := runValidateJSON(t, dir)
+		if !res.IsConformant || !res.GatePassed || len(res.GateFindings) != 0 {
+			t.Fatalf("expected strict gate pass for team actor, got conformant=%v gate=%v findings=%v",
+				res.IsConformant, res.GatePassed, res.GateFindings)
+		}
+		if res.Scorecard == nil || res.Scorecard.Stewardship != 20 {
+			t.Errorf("expected Stewardship=20 for team verification, got %+v", res.Scorecard)
+		}
+	})
+
+	t.Run("historical plus current human sign-off awards full stewardship", func(t *testing.T) {
+		dir := writeBundle(t, `---
+type: Policy
+title: Re-verified Policy
+description: Policy doc.
+generated: { by: "reference_agent/gemini-2.5-pro", at: "2026-06-25T10:00:00Z" }
+verified:
+  - { by: "human:alice", at: "2026-06-20T09:00:00Z" }
+  - { by: "human:bob", at: "2026-06-26T09:00:00Z" }
+---
+# Policy
+`)
+		res := runValidateJSON(t, dir)
+		if !res.IsConformant || !res.GatePassed || len(res.GateFindings) != 0 {
+			t.Fatalf("expected strict gate pass, got conformant=%v gate=%v findings=%v",
+				res.IsConformant, res.GatePassed, res.GateFindings)
+		}
+		if res.Scorecard == nil || res.Scorecard.Stewardship != 100 {
+			t.Errorf("expected Stewardship=100 for current human review, got %+v", res.Scorecard)
+		}
+	})
 }

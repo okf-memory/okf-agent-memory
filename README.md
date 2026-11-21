@@ -137,15 +137,20 @@ This generates the standalone binary at `bin/okf`.
 # Inspect a concept and its relationships (with --json support)
 ./bin/okf show architecture/layers knowledge --json
 
+# Query concept changes within a time range (daily worklogs, reviews, handovers)
+./bin/okf changes knowledge --since 7d --json
+
 # Create a new concept with automated log.md and index.md bookkeeping
 ./bin/okf create decisions/auth-flow knowledge \
   --type Decision \
   --title "OAuth2 Authorization Flow" \
-  --desc "Standardized on PKCE for client authentication."
+  --desc "Standardized on PKCE for client authentication." \
+  --stale-after 90d
 
-# Update an existing concept
+# Update an existing concept (with optional change note in log.md)
 ./bin/okf update decisions/auth-flow knowledge \
-  --desc "Updated OAuth2 PKCE token refresh interval."
+  --desc "Updated OAuth2 PKCE token refresh interval." \
+  --change-note "Aligned refresh window with mobile clients"
 
 # Bootstrap full agent memory stack into any target project
 ./bin/okf bootstrap /path/to/project --name "My Project"

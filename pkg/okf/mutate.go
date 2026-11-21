@@ -16,7 +16,7 @@ var newlineReplacer = strings.NewReplacer("\r", " ", "\n", " ")
 
 // frontmatterSmuggleRegex matches reserved frontmatter keys in a body line, including quoted keys
 // and whitespace before the colon, which a plain prefix check would miss.
-var frontmatterSmuggleRegex = regexp.MustCompile(`(?i)^\s*["']?(verified|governance|generated|type|status|code_refs|stale_after)["']?\s*:`)
+var frontmatterSmuggleRegex = regexp.MustCompile(`(?i)^\s*["']?(verified|governance|generated|type|status|superseded_by|code_refs|stale_after)["']?\s*:`)
 
 func titleCase(s string) string {
 	if s == "" {
@@ -92,6 +92,48 @@ func InitBundle(dir string) error {
 	})
 }
 
+// ResolveStaleAfter parses a stale_after input string into a canonical YYYY-MM-DD UTC date.
+// An empty string "" returns ("", "", nil) to indicate clearing the key.
+// Supported formats: ISO date (YYYY-MM-DD), ISO 8601 timestamp (normalized to UTC date),
+// or relative duration matching ParseRelativeDuration (e.g. "14d", "2w", "3m", "90d").
+// Dates strictly before today (UTC) succeed and return a non-empty warning string.
+func ResolveStaleAfter(raw string, now time.Time) (string, string, error) {
+	if raw == "" {
+		return "", "", nil
+	}
+	if strings.ContainsAny(raw, "\r\n") {
+		return "", "", fmt.Errorf("invalid stale_after %q: cannot contain newlines", raw)
+	}
+	if strings.Contains(raw, "---") {
+		return "", "", fmt.Errorf("invalid stale_after %q: cannot contain frontmatter delimiter '---'", raw)
+	}
+
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", "", fmt.Errorf("invalid stale_after %q: whitespace-only value is not allowed (use empty string \"\" to clear)", raw)
+	}
+
+	nowUTC := now.UTC()
+	var resolved string
+
+	if t, err := time.Parse("2006-01-02", trimmed); err == nil {
+		resolved = t.Format("2006-01-02")
+	} else if t, ok := parseTimestamp(trimmed); ok {
+		resolved = t.UTC().Format("2006-01-02")
+	} else if d, err := ParseRelativeDuration(trimmed); err == nil {
+		resolved = nowUTC.Add(d).Format("2006-01-02")
+	} else {
+		return "", "", fmt.Errorf("invalid stale_after %q: expected YYYY-MM-DD, ISO 8601 timestamp, or relative duration (e.g. 14d, 2w, 3m)", raw)
+	}
+
+	today := nowUTC.Format("2006-01-02")
+	var warning string
+	if resolved < today {
+		warning = fmt.Sprintf("stale_after date %s is in the past (today is %s)", resolved, today)
+	}
+	return resolved, warning, nil
+}
+
 // AppendLogEntry prepends a new dated change entry to log.md.
 func AppendLogEntry(bundleDir, entryType, description string) error {
 	logPath := filepath.Join(bundleDir, "log.md")
@@ -104,15 +146,36 @@ func AppendLogEntry(bundleDir, entryType, description string) error {
 }
 
 func appendLogEntryLocked(bundleDir, entryType, description string) error {
-	entryType = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(entryType, "\r", " "), "\n", " "))
-	description = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(description, "\r", " "), "\n", " "))
+	entryType = strings.TrimSpace(newlineReplacer.Replace(entryType))
+	description = strings.TrimSpace(newlineReplacer.Replace(description))
+	today := time.Now().UTC().Format("2006-01-02")
+	newEntry := fmt.Sprintf("* **%s**: %s\n", entryType, description)
+	return insertLogLineLocked(bundleDir, today, newEntry)
+}
 
+func appendTimestampedLogEntryLocked(bundleDir string, at time.Time, entryType, description, changeNote string) error {
+	entryType = strings.TrimSpace(newlineReplacer.Replace(entryType))
+	description = strings.TrimSpace(newlineReplacer.Replace(description))
+	changeNote = strings.TrimSpace(newlineReplacer.Replace(changeNote))
+
+	atUTC := at.UTC()
+	today := atUTC.Format("2006-01-02")
+	ts := atUTC.Format(time.RFC3339)
+
+	var newEntry string
+	if changeNote != "" {
+		newEntry = fmt.Sprintf("* **%s** [%s]: %s — %s\n", entryType, ts, description, changeNote)
+	} else {
+		newEntry = fmt.Sprintf("* **%s** [%s]: %s\n", entryType, ts, description)
+	}
+	return insertLogLineLocked(bundleDir, today, newEntry)
+}
+
+func insertLogLineLocked(bundleDir, dayHeading, newEntry string) error {
 	logPath := filepath.Join(bundleDir, "log.md")
 	if _, err := ensureWithinRoot(bundleDir, logPath); err != nil {
 		return err
 	}
-	today := time.Now().UTC().Format("2006-01-02")
-	newEntry := fmt.Sprintf("* **%s**: %s\n", entryType, description)
 
 	existingContent := ""
 	// #nosec G304 -- logPath is guaranteed within bundleDir via ensureWithinRoot
@@ -120,7 +183,7 @@ func appendLogEntryLocked(bundleDir, entryType, description string) error {
 		existingContent = string(data)
 	}
 
-	heading := fmt.Sprintf("## %s\n", today)
+	heading := fmt.Sprintf("## %s\n", dayHeading)
 	if idx := strings.Index(existingContent, heading); idx != -1 {
 		afterHeading := existingContent[idx+len(heading):]
 		nextHeadingIdx := strings.Index(afterHeading, "\n## ")
@@ -249,6 +312,46 @@ func UpdateParentIndex(bundleDir string, c *Concept) error {
 	})
 }
 
+// splitRawFrontmatter splits content into its exact raw frontmatter prefix
+// (including both '---' delimiter lines and the trailing newline) and the remaining body.
+// If content has no frontmatter block, prefix is empty and body is content unchanged.
+func splitRawFrontmatter(content string) (prefix, body string) {
+	offset := 0
+	if strings.HasPrefix(content, "\ufeff") {
+		offset = len("\ufeff")
+	}
+	rest := content[offset:]
+	if !strings.HasPrefix(rest, "---") {
+		return "", content
+	}
+	nlIdx := strings.IndexByte(rest, '\n')
+	if nlIdx == -1 {
+		return "", content
+	}
+	firstLine := strings.TrimRight(rest[:nlIdx], "\r")
+	if firstLine != "---" {
+		return "", content
+	}
+
+	pos := offset + nlIdx + 1
+	for pos < len(content) {
+		nextNL := strings.IndexByte(content[pos:], '\n')
+		var lineEnd, afterLine int
+		if nextNL == -1 {
+			lineEnd = len(content)
+			afterLine = len(content)
+		} else {
+			lineEnd = pos + nextNL
+			afterLine = lineEnd + 1
+		}
+		if strings.TrimRight(content[pos:lineEnd], "\r") == "---" {
+			return content[:afterLine], content[afterLine:]
+		}
+		pos = afterLine
+	}
+	return "", content
+}
+
 func updateParentIndexLocked(bundleDir string, c *Concept) error {
 	absBundle, err := filepath.Abs(bundleDir)
 	if err != nil {
@@ -301,22 +404,34 @@ func updateParentIndexLocked(bundleDir string, c *Concept) error {
 		existingContent = header
 	}
 
-	// Check if already listed
+	// Preserve any existing frontmatter verbatim (OKF v0.3 §8.1); only search/mutate body.
+	fmPrefix, bodyPart := splitRawFrontmatter(existingContent)
+
+	// Check if already listed in body
 	linkTarget := fmt.Sprintf("(%s)", targetFilename)
-	if strings.Contains(existingContent, linkTarget) {
+	if strings.Contains(bodyPart, linkTarget) {
 		// Update existing line
-		lines := strings.Split(existingContent, "\n")
+		lines := strings.Split(bodyPart, "\n")
 		for i, l := range lines {
 			if strings.Contains(l, linkTarget) {
 				lines[i] = newListing
 				break
 			}
 		}
-		existingContent = strings.Join(lines, "\n")
+		bodyPart = strings.Join(lines, "\n")
 	} else {
 		// Append listing
-		existingContent = strings.TrimRight(existingContent, "\n") + "\n" + newListing + "\n"
+		if bodyPart == "" {
+			if fmPrefix != "" && !strings.HasSuffix(fmPrefix, "\n") {
+				bodyPart = "\n\n" + newListing + "\n"
+			} else {
+				bodyPart = "\n" + newListing + "\n"
+			}
+		} else {
+			bodyPart = strings.TrimRight(bodyPart, "\n") + "\n" + newListing + "\n"
+		}
 	}
+	existingContent = fmPrefix + bodyPart
 
 	// #nosec G703 -- indexPath is verified within bundleDir
 	return atomicWriteFile(indexPath, []byte(existingContent), 0o644)
@@ -403,6 +518,8 @@ func sanitizeConceptMetadata(c *Concept) error {
 		{"type", c.Type},
 		{"title", c.Title},
 		{"description", c.Description},
+		{"stale_after", c.StaleAfter},
+		{"superseded_by", c.SupersededBy},
 	}
 	if c.Generated != nil {
 		fields = append(fields, struct {
@@ -446,10 +563,13 @@ func sanitizeConceptMetadata(c *Concept) error {
 
 // SaveOptions controls bookkeeping and authoring metadata when persisting a concept.
 type SaveOptions struct {
-	IsNew     bool
-	AutoLog   bool
-	AutoIndex bool
-	Actor     string
+	IsNew        bool
+	AutoLog      bool
+	AutoIndex    bool
+	Actor        string
+	ChangeNote   string
+	LogDetail    string
+	LogEntryType string
 }
 
 // SaveConcept writes a concept file to disk and optionally executes automatic bookkeeping.
@@ -505,9 +625,15 @@ func saveConceptLocked(bundleDir string, c *Concept, opts SaveOptions) error {
 		}
 	}
 
+	now := time.Now().UTC()
+	var genExtra map[string]string
+	if c.Generated != nil && len(c.Generated.Extra) > 0 {
+		genExtra = c.Generated.Extra
+	}
 	c.Generated = &Generated{
-		By: actor,
-		At: time.Now().UTC().Format(time.RFC3339),
+		By:    actor,
+		At:    now.Format(time.RFC3339),
+		Extra: genExtra,
 	}
 
 	if err := sanitizeConceptMetadata(c); err != nil {
@@ -541,13 +667,36 @@ func saveConceptLocked(bundleDir string, c *Concept, opts SaveOptions) error {
 	}
 
 	if opts.AutoLog {
-		entryType := "Update"
-		desc := fmt.Sprintf("Updated concept `%s`.", c.Path)
+		entryType := opts.LogEntryType
+		detail := strings.TrimSpace(opts.LogDetail)
+		var desc string
 		if opts.IsNew {
-			entryType = "Creation"
-			desc = fmt.Sprintf("Documented concept `%s` (%s).", c.Path, c.Title)
+			if entryType == "" {
+				entryType = "Creation"
+			}
+			if detail != "" {
+				desc = fmt.Sprintf("Documented concept `%s` (%s); %s.", c.Path, c.Title, detail)
+			} else {
+				desc = fmt.Sprintf("Documented concept `%s` (%s).", c.Path, c.Title)
+			}
+		} else if strings.EqualFold(entryType, "Deprecation") {
+			entryType = "Deprecation"
+			if detail != "" {
+				desc = fmt.Sprintf("Deprecated concept `%s` (%s).", c.Path, detail)
+			} else {
+				desc = fmt.Sprintf("Deprecated concept `%s`.", c.Path)
+			}
+		} else {
+			if entryType == "" {
+				entryType = "Update"
+			}
+			if detail != "" {
+				desc = fmt.Sprintf("Updated concept `%s` (%s).", c.Path, detail)
+			} else {
+				desc = fmt.Sprintf("Updated concept `%s`.", c.Path)
+			}
 		}
-		if err := appendLogEntryLocked(bundleDir, entryType, desc); err != nil {
+		if err := appendTimestampedLogEntryLocked(bundleDir, now, entryType, desc, opts.ChangeNote); err != nil {
 			return fmt.Errorf("failed to append log entry: %w", err)
 		}
 	}
@@ -576,9 +725,14 @@ func UpdateConcept(bundleDir, conceptID string, opts SaveOptions, mutateFn func(
 			return fmt.Errorf("%w: '%s' in %s", ErrConceptNotFound, cleanID, bundleDir)
 		}
 
+		prevStatus := c.Status
 		updated := *c
 		if err := mutateFn(&updated); err != nil {
 			return err
+		}
+
+		if opts.LogEntryType == "" && !strings.EqualFold(prevStatus, "deprecated") && strings.EqualFold(updated.Status, "deprecated") {
+			opts.LogEntryType = "Deprecation"
 		}
 
 		opts.IsNew = false
@@ -594,8 +748,24 @@ func UpdateConcept(bundleDir, conceptID string, opts SaveOptions, mutateFn func(
 	return result, nil
 }
 
+// RelateOptions controls bookkeeping and provenance when relating two concepts.
+type RelateOptions struct {
+	Actor      string
+	AutoLog    bool
+	ChangeNote string
+}
+
 // RelateConcepts creates a relative markdown link between source and target concepts.
 func RelateConcepts(bundleDir, sourceID, targetID, relationDesc, actor string) error {
+	return RelateConceptsWithOptions(bundleDir, sourceID, targetID, relationDesc, RelateOptions{
+		Actor:   actor,
+		AutoLog: true,
+	})
+}
+
+// RelateConceptsWithOptions creates a relative markdown link between source and target concepts
+// with optional log suppression and change note bookkeeping.
+func RelateConceptsWithOptions(bundleDir, sourceID, targetID, relationDesc string, opts RelateOptions) error {
 	relationDesc = strings.TrimSpace(newlineReplacer.Replace(relationDesc))
 
 	sourceID = strings.TrimSpace(strings.TrimSuffix(sourceID, ".md"))
@@ -654,16 +824,20 @@ func RelateConcepts(bundleDir, sourceID, targetID, relationDesc, actor string) e
 			IsNew:     false,
 			AutoLog:   false,
 			AutoIndex: false,
-			Actor:     actor,
+			Actor:     opts.Actor,
 		}); err != nil {
 			return fmt.Errorf("failed to save related concept: %w", err)
+		}
+
+		if !opts.AutoLog {
+			return nil
 		}
 
 		logDesc := fmt.Sprintf("Linked `%s` to `%s`.", srcConcept.Path, tgtConcept.Path)
 		if relationDesc != "" {
 			logDesc = fmt.Sprintf("Linked `%s` to `%s` (%s).", srcConcept.Path, tgtConcept.Path, relationDesc)
 		}
-		return appendLogEntryLocked(bundleDir, "Update", logDesc)
+		return appendTimestampedLogEntryLocked(bundleDir, time.Now().UTC(), "Relate", logDesc, opts.ChangeNote)
 	})
 }
 

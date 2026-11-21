@@ -295,7 +295,7 @@ func TestCmdPull_ForceReinstallNeverWritesThroughPreexistingSymlink(t *testing.T
 		ridMustSymlink(t, outside, sub)
 		ridRegistry(t,
 			map[string]string{"rules": `{"id":"acme/rules","version":"1.0.0","download_url":"/valid.tar.gz"}`},
-			map[string][]byte{"valid.tar.gz": ridArchive(t, ridFile{"index.md", ridValidIndex}, ridFile{"sub/planted.md", "planted"})})
+			map[string][]byte{"valid.tar.gz": ridArchive(t, ridFile{"index.md", ridValidIndex}, ridFile{"sub/planted.md", "---\ntype: Note\ntitle: \"   \"\n---\nplanted\n"})})
 
 		code, stderr := ridRun(t, "pull", "--registry", "https://registry.test", "--force", "rules")
 

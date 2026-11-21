@@ -631,6 +631,27 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 				return
 			}
 		}
+		var staleAfter, staleWarning, logDetail string
+		if _, exists := callParams.Arguments["stale_after"]; exists {
+			rawStale, err := getStringArg(callParams.Arguments, "stale_after", 100, false)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			if rawStale != "" {
+				staleAfter, staleWarning, err = ResolveStaleAfter(rawStale, time.Now().UTC())
+				if err != nil {
+					s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+					return
+				}
+				logDetail = fmt.Sprintf("set stale_after %s", staleAfter)
+			}
+		}
+		changeNote, err := getStringArg(callParams.Arguments, "change_note", 1000, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
 
 		cleanID := strings.TrimSuffix(conceptID, ".md")
 		c := &Concept{
@@ -642,25 +663,34 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			Body:        body,
 			Status:      status,
 			Tags:        tags,
+			StaleAfter:  staleAfter,
 		}
 
 		if err := SaveConcept(bundleDir, c, SaveOptions{
-			IsNew:     true,
-			AutoLog:   true,
-			AutoIndex: true,
-			Actor:     "agent/mcp",
+			IsNew:      true,
+			AutoLog:    true,
+			AutoIndex:  true,
+			Actor:      "agent/mcp",
+			ChangeNote: changeNote,
+			LogDetail:  logDetail,
 		}); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Failed to save concept: %v", err), nil, true)
 			return
 		}
 
 		msg := fmt.Sprintf("Successfully created concept %s in %s", c.Path, bundleDir)
+		if staleWarning != "" {
+			msg += fmt.Sprintf(" (Warning: %s)", staleWarning)
+		}
 		structured := map[string]any{
 			"success":    true,
 			"concept_id": c.ID,
 			"path":       c.Path,
 			"bundle":     bundleDir,
 			"message":    msg,
+		}
+		if staleWarning != "" {
+			structured["warning"] = staleWarning
 		}
 		s.sendToolResult(req.ID, msg, structured, false)
 
@@ -745,12 +775,44 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 				return
 			}
 		}
+		_, hasStaleAfter := callParams.Arguments["stale_after"]
+		var staleAfter, staleWarning, logDetail string
+		if hasStaleAfter {
+			rawVal, ok := callParams.Arguments["stale_after"]
+			if rawVal == nil || !ok {
+				s.sendToolResult(req.ID, "Invalid arguments: argument 'stale_after' must be a string", nil, true)
+				return
+			}
+			rawStale, err := getStringArg(callParams.Arguments, "stale_after", 100, false)
+			if err != nil {
+				s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+				return
+			}
+			if rawStale == "" {
+				staleAfter = ""
+				logDetail = "cleared stale_after"
+			} else {
+				staleAfter, staleWarning, err = ResolveStaleAfter(rawStale, time.Now().UTC())
+				if err != nil {
+					s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+					return
+				}
+				logDetail = fmt.Sprintf("set stale_after %s", staleAfter)
+			}
+		}
+		changeNote, err := getStringArg(callParams.Arguments, "change_note", 1000, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
 
 		updated, err := UpdateConcept(bundleDir, cleanID, SaveOptions{
-			IsNew:     false,
-			AutoLog:   true,
-			AutoIndex: true,
-			Actor:     "agent/mcp",
+			IsNew:      false,
+			AutoLog:    true,
+			AutoIndex:  true,
+			Actor:      "agent/mcp",
+			ChangeNote: changeNote,
+			LogDetail:  logDetail,
 		}, func(c *Concept) error {
 			if hasType {
 				c.Type = conceptType
@@ -770,6 +832,9 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			if hasBody {
 				c.Body = body
 			}
+			if hasStaleAfter {
+				c.StaleAfter = staleAfter
+			}
 			return nil
 		})
 		if err != nil {
@@ -782,12 +847,18 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 		}
 
 		msg := fmt.Sprintf("Successfully updated concept %s in %s", updated.Path, bundleDir)
+		if staleWarning != "" {
+			msg += fmt.Sprintf(" (Warning: %s)", staleWarning)
+		}
 		structured := map[string]any{
 			"success":    true,
 			"concept_id": updated.ID,
 			"path":       updated.Path,
 			"bundle":     bundleDir,
 			"message":    msg,
+		}
+		if staleWarning != "" {
+			structured["warning"] = staleWarning
 		}
 		s.sendToolResult(req.ID, msg, structured, false)
 
@@ -807,8 +878,17 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
 			return
 		}
+		changeNote, err := getStringArg(callParams.Arguments, "change_note", 1000, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
 
-		if err := RelateConcepts(bundleDir, srcID, tgtID, desc, "agent/mcp"); err != nil {
+		if err := RelateConceptsWithOptions(bundleDir, srcID, tgtID, desc, RelateOptions{
+			Actor:      "agent/mcp",
+			AutoLog:    true,
+			ChangeNote: changeNote,
+		}); err != nil {
 			s.sendToolResult(req.ID, fmt.Sprintf("Failed to relate concepts: %v", err), nil, true)
 			return
 		}
@@ -822,6 +902,42 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			"message":   msg,
 		}
 		s.sendToolResult(req.ID, msg, structured, false)
+
+	case "okf_changes":
+		since, err := getStringArg(callParams.Arguments, "since", 100, true)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
+		until, err := getStringArg(callParams.Arguments, "until", 100, false)
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Invalid arguments: %v", err), nil, true)
+			return
+		}
+		limit := defaultChangesLimit
+		if rawLimit, exists := callParams.Arguments["limit"]; exists && rawLimit != nil {
+			l, ok := rawLimit.(float64)
+			if !ok || l <= 0 {
+				s.sendToolResult(req.ID, "Invalid arguments: argument 'limit' must be a positive integer", nil, true)
+				return
+			}
+			limit = int(l)
+			if limit > maxChangesLimit {
+				limit = maxChangesLimit
+			}
+		}
+
+		res, err := QueryChanges(b, ChangesOptions{
+			Since: since,
+			Until: until,
+			Limit: limit,
+		})
+		if err != nil {
+			s.sendToolResult(req.ID, fmt.Sprintf("Changes query error: %v", err), nil, true)
+			return
+		}
+		resJSON, _ := json.Marshal(res)
+		s.sendToolResult(req.ID, string(resJSON), res, false)
 
 	default:
 		s.sendToolResult(req.ID, fmt.Sprintf("Unknown tool: %s", callParams.Name), nil, true)

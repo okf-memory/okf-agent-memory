@@ -1,12 +1,15 @@
 package okf
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -17,21 +20,85 @@ func StripFences(text string) string {
 	return fenceRegex.ReplaceAllString(text, "")
 }
 
-// LinkRegex matches markdown links `[label](href)`
+// LinkRegex matches markdown links `[label](href.md)`
 var linkRegex = regexp.MustCompile(`\]\(([^)\s]+\.md)(?:#[^)]*)?\)`)
+
+// allLinkRegex matches any standard markdown link or image `[label](href)` / `![alt](href)`.
+var allLinkRegex = regexp.MustCompile(`\]\(([^)\s]+)\)`)
+
+// ErrSupersededCycle is returned when following superseded_by links encounters a cycle.
+var ErrSupersededCycle = errors.New("cyclic superseded_by chain detected")
+
+// SupersededResolution describes the outcome of following a concept's superseded_by chain.
+type SupersededResolution struct {
+	Target    *Concept // Final resolved concept (may be the starting concept if not superseded)
+	Chain     []string // Concept IDs traversed, starting with the original ID and ending with Target.ID
+	Forwarded bool     // True if Target.ID != original ID
+}
 
 // Bundle represents an in-memory OKF bundle.
 type Bundle struct {
-	RootPath     string              `json:"root_path"`
-	DeclaredVer  string              `json:"declared_version,omitempty"` // e.g. "0.2" from root index.md
-	Scopes       []Scope             `json:"scopes,omitempty"`           // optional allowed memory scopes from root index.md
-	Concepts     map[string]*Concept `json:"concepts"`                   // concept ID -> Concept
-	Indexes      map[string]string   `json:"indexes"`                    // relPath -> raw content
-	LogContent   string              `json:"log_content,omitempty"`
-	Graph        map[string][]string `json:"graph"`         // concept ID -> outbound concept IDs
-	InboundGraph map[string][]string `json:"inbound_graph"` // concept ID -> inbound concept IDs
-	BrokenLinks  []BrokenLink        `json:"broken_links,omitempty"`
-	Orphans      []string            `json:"orphans,omitempty"`
+	RootPath        string              `json:"root_path"`
+	DeclaredVer     string              `json:"declared_version,omitempty"` // e.g. "0.3" from root index.md okf_version
+	Title           string              `json:"title,omitempty"`            // optional bundle title from root index.md (§8.1)
+	Description     string              `json:"description,omitempty"`      // optional bundle description from root index.md (§8.1)
+	License         string              `json:"license,omitempty"`          // optional SPDX or path license from root index.md (§8.1)
+	Extra           map[string]any      `json:"extra,omitempty"`            // optional extension keys from root index.md (§8.1)
+	Scopes          []Scope             `json:"scopes,omitempty"`           // optional allowed memory scopes from root index.md
+	Concepts        map[string]*Concept `json:"concepts"`                   // concept ID -> Concept
+	Indexes         map[string]string   `json:"indexes"`                    // relPath -> raw content
+	Assets          []string            `json:"assets,omitempty"`           // non-Markdown bundle-relative asset paths (§3.2)
+	SkippedMarkdown []string            `json:"skipped_markdown,omitempty"` // .md files without frontmatter or type (§3.2)
+	LogContent      string              `json:"log_content,omitempty"`
+	Graph           map[string][]string `json:"graph"`         // concept ID -> outbound concept IDs
+	InboundGraph    map[string][]string `json:"inbound_graph"` // concept ID -> inbound concept IDs
+	BrokenLinks     []BrokenLink        `json:"broken_links,omitempty"`
+	Orphans         []string            `json:"orphans,omitempty"`
+}
+
+// IsV02OrEarlier reports whether this bundle declares OKF version 0.2 or earlier,
+// or declares no version at all (OKF v0.3 §12.1 compatibility fallback trigger).
+func (b *Bundle) IsV02OrEarlier() bool {
+	if b == nil {
+		return true
+	}
+	v := strings.TrimSpace(b.DeclaredVer)
+	if v == "" {
+		return true
+	}
+	v = strings.TrimPrefix(strings.TrimPrefix(v, "v"), "V")
+	parts := strings.Split(v, ".")
+	if len(parts) < 2 {
+		major, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return false
+		}
+		return major == 0
+	}
+	major, err1 := strconv.Atoi(parts[0])
+	minor, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return major == 0 && minor <= 2
+}
+
+// HasAsset reports whether relPath (bundle-relative, with or without leading '/')
+// refers to a non-Markdown asset file present in the bundle.
+func (b *Bundle) HasAsset(relPath string) bool {
+	if b == nil || len(b.Assets) == 0 {
+		return false
+	}
+	norm := strings.TrimPrefix(path.Clean(strings.ReplaceAll(relPath, "\\", "/")), "/")
+	return slices.Contains(b.Assets, norm)
+}
+
+func (b *Bundle) isSkippedMarkdown(relPath string) bool {
+	if b == nil || len(b.SkippedMarkdown) == 0 {
+		return false
+	}
+	norm := strings.TrimPrefix(path.Clean(strings.ReplaceAll(relPath, "\\", "/")), "/")
+	return slices.Contains(b.SkippedMarkdown, norm)
 }
 
 // AllowedScope reports whether the given scope is permitted by this bundle's configuration.
@@ -184,9 +251,19 @@ func ensureRootWithinParent(root, realRoot string) error {
 	return nil
 }
 
-// parseRootIndexFrontmatter extracts okf_version and optional scopes configuration from root index.md.
+type rootIndexMeta struct {
+	declaredVer string
+	title       string
+	description string
+	license     string
+	scopes      []Scope
+	extra       map[string]any
+}
+
+// parseRootIndexFrontmatter extracts OKF bundle metadata (okf_version, title, description, license),
+// optional scopes configuration, and extension keys from root index.md (§8.1).
 // If 'scopes' is present, it must be a non-empty list containing only canonical scopes (project, vendor, user, system).
-func parseRootIndexFrontmatter(fmText string) (string, []Scope, error) {
+func parseRootIndexFrontmatter(fmText string) (rootIndexMeta, error) {
 	type fmBlock struct {
 		inline string
 		lines  []string
@@ -216,22 +293,51 @@ func parseRootIndexFrontmatter(fmText string) (string, []Scope, error) {
 		blocks[key] = curBlock
 	}
 
-	var declaredVer string
-	if verBlock, ok := blocks["okf_version"]; ok {
-		declaredVer = unquote(verBlock.inline)
+	var meta rootIndexMeta
+	parseOptionalScalar := func(raw string) string {
+		if isYAMLNull(raw) {
+			return ""
+		}
+		return unquote(raw)
+	}
+
+	for key, blk := range blocks {
+		switch key {
+		case "okf_version":
+			meta.declaredVer = parseOptionalScalar(blk.inline)
+		case "title":
+			meta.title = parseOptionalScalar(blk.inline)
+		case "description":
+			meta.description = parseOptionalScalar(blk.inline)
+		case "license":
+			meta.license = parseOptionalScalar(blk.inline)
+		case "scopes":
+			// Handled below with strict validation.
+		default:
+			if meta.extra == nil {
+				meta.extra = make(map[string]any)
+			}
+			if len(blk.lines) == 0 {
+				meta.extra[key] = parseExtraValue(blk.inline)
+			} else if items, ok := parseBlockList(blk.lines); ok {
+				meta.extra[key] = items
+			} else {
+				meta.extra[key] = normalizeBlockLines(blk.lines)
+			}
+		}
 	}
 
 	scopesBlock, hasScopes := blocks["scopes"]
 	if !hasScopes {
-		return declaredVer, nil, nil
+		return meta, nil
 	}
 
 	rawItems, err := parseStrictScopesList(scopesBlock.inline, scopesBlock.lines)
 	if err != nil {
-		return "", nil, err
+		return rootIndexMeta{}, err
 	}
 	if len(rawItems) == 0 {
-		return "", nil, fmt.Errorf("invalid scopes in index.md: scopes list cannot be empty")
+		return rootIndexMeta{}, fmt.Errorf("invalid scopes in index.md: scopes list cannot be empty")
 	}
 
 	var scopes []Scope
@@ -245,10 +351,11 @@ func parseRootIndexFrontmatter(fmText string) (string, []Scope, error) {
 				scopes = append(scopes, norm)
 			}
 		default:
-			return "", nil, fmt.Errorf("invalid scope %q in index.md (allowed: project, vendor, user, system)", raw)
+			return rootIndexMeta{}, fmt.Errorf("invalid scope %q in index.md (allowed: project, vendor, user, system)", raw)
 		}
 	}
-	return declaredVer, scopes, nil
+	meta.scopes = scopes
+	return meta, nil
 }
 
 func parseStrictScopesList(inline string, blockLines []string) ([]string, error) {
@@ -328,7 +435,7 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 		}
 
 		name := d.Name()
-		if strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".md") {
+		if strings.HasPrefix(name, ".") {
 			return nil
 		}
 
@@ -337,6 +444,17 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
+
+		// Non-Markdown files are linkable assets, not concepts (OKF v0.3 §3.2).
+		if !strings.HasSuffix(name, ".md") {
+			if d.Type()&fs.ModeSymlink != 0 {
+				if _, err := ensureWithinRoot(walkRoot, path); err != nil {
+					return nil // Do not follow symlinks outside bundle root (§3.2 rule 5)
+				}
+			}
+			b.Assets = append(b.Assets, rel)
+			return nil
+		}
 
 		// Root AGENTS.md is the agent governance layer (DMAA L1), not an OKF concept
 		if strings.EqualFold(rel, "AGENTS.md") {
@@ -373,12 +491,16 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 			if rel == "index.md" {
 				fm, _, hasFM := ExtractFrontmatter(content)
 				if hasFM {
-					ver, scopes, err := parseRootIndexFrontmatter(fm)
+					meta, err := parseRootIndexFrontmatter(fm)
 					if err != nil {
 						return err
 					}
-					b.DeclaredVer = ver
-					b.Scopes = scopes
+					b.DeclaredVer = meta.declaredVer
+					b.Title = meta.title
+					b.Description = meta.description
+					b.License = meta.license
+					b.Extra = meta.extra
+					b.Scopes = meta.scopes
 				}
 			}
 			return nil
@@ -388,6 +510,14 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 			if rel == "log.md" {
 				b.LogContent = content
 			}
+			return nil
+		}
+
+		// OKF v0.3 §3.2: A .md file without frontmatter or without a non-empty 'type'
+		// is not a concept (e.g. README.md, AGENTS.md, CONTRIBUTING.md, SKILL.md).
+		// Consumers skip it cleanly without treating it as a concept or orphan.
+		if _, _, hasFM := ExtractFrontmatter(content); !hasFM {
+			b.SkippedMarkdown = append(b.SkippedMarkdown, rel)
 			return nil
 		}
 
@@ -402,6 +532,8 @@ func loadBundle(root string, trustedRoot bool) (*Bundle, error) {
 				RawContent: content,
 				sourceHash: hashConceptContent(content),
 			}
+		} else if strings.TrimSpace(c.Type) == "" {
+			b.SkippedMarkdown = append(b.SkippedMarkdown, rel)
 		} else {
 			c.sourceHash = hashConceptContent(content)
 			b.Concepts[c.ID] = c
@@ -444,52 +576,196 @@ func (b *Bundle) ResolveLink(sourceRelPath, href string) string {
 	return strings.TrimSuffix(cleanPath, ".md")
 }
 
+// ResolveSuperseded follows superseded_by references from startID to the final active
+// replacement concept (OKF v0.3 §5.4). It only follows superseded_by on deprecated
+// concepts, detects cycles without infinite looping, and reports broken or escaping targets.
+func (b *Bundle) ResolveSuperseded(startID string) (*SupersededResolution, error) {
+	if b == nil {
+		return nil, fmt.Errorf("%w: %q", ErrConceptNotFound, startID)
+	}
+	curr, ok := b.Concepts[startID]
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrConceptNotFound, startID)
+	}
+
+	visited := map[string]bool{startID: true}
+	chain := []string{startID}
+
+	for strings.EqualFold(curr.Status, "deprecated") && strings.TrimSpace(curr.SupersededBy) != "" {
+		rp := b.ResolvePath(curr.Path, curr.SupersededBy)
+		if rp.Kind == PathKindEscapes {
+			return &SupersededResolution{
+				Target:    curr,
+				Chain:     chain,
+				Forwarded: len(chain) > 1,
+			}, rp.Err
+		}
+		if rp.Kind != PathKindConcept {
+			return &SupersededResolution{
+				Target:    curr,
+				Chain:     chain,
+				Forwarded: len(chain) > 1,
+			}, fmt.Errorf("superseded_by target %q from %q does not resolve to an in-bundle concept", curr.SupersededBy, curr.ID)
+		}
+		if visited[rp.ConceptID] {
+			cycleChain := append(append([]string{}, chain...), rp.ConceptID)
+			return &SupersededResolution{
+				Target:    curr,
+				Chain:     cycleChain,
+				Forwarded: len(chain) > 1,
+			}, fmt.Errorf("%w: %s", ErrSupersededCycle, strings.Join(cycleChain, " -> "))
+		}
+
+		next := b.Concepts[rp.ConceptID]
+		visited[next.ID] = true
+		chain = append(chain, next.ID)
+		curr = next
+	}
+
+	return &SupersededResolution{
+		Target:    curr,
+		Chain:     chain,
+		Forwarded: len(chain) > 1,
+	}, nil
+}
+
 func (b *Bundle) buildGraph() {
 	linkedNodes := make(map[string]bool)
+	edgeSeen := make(map[string]map[string]bool)
 
 	for id := range b.Concepts {
 		b.Graph[id] = make([]string, 0)
 		if _, ok := b.InboundGraph[id]; !ok {
 			b.InboundGraph[id] = make([]string, 0)
 		}
+		edgeSeen[id] = make(map[string]bool)
+	}
+
+	addEdge := func(fromID, toID string) {
+		if fromID == toID {
+			return
+		}
+		if !edgeSeen[fromID][toID] {
+			edgeSeen[fromID][toID] = true
+			b.Graph[fromID] = append(b.Graph[fromID], toID)
+			b.InboundGraph[toID] = append(b.InboundGraph[toID], fromID)
+		}
+		linkedNodes[fromID] = true
+		linkedNodes[toID] = true
 	}
 
 	for id, concept := range b.Concepts {
+		// 1. Body Markdown links (§6.1)
 		body := StripFences(concept.Body)
-		matches := linkRegex.FindAllStringSubmatch(body, -1)
+		matches := allLinkRegex.FindAllStringSubmatch(body, -1)
 
 		for _, match := range matches {
 			href := match[1]
-			if IsExternalLink(href) {
+			rp := b.ResolvePath(concept.Path, href)
+
+			switch rp.Kind {
+			case PathKindEmpty, PathKindFragment:
+				continue
+			case PathKindExternal:
 				linkedNodes[id] = true // Outbound external reference prevents false orphan flag
-				continue               // External URL or Qualified Scope URI: hermetic CI ignores remote target
-			}
-
-			targetID := b.ResolveLink(concept.Path, href)
-			targetRel := targetID + ".md"
-			targetBase := path.Base(targetRel)
-
-			if strings.EqualFold(targetBase, "index.md") || strings.EqualFold(targetRel, "log.md") || strings.EqualFold(targetRel, "AGENTS.md") {
+				continue
+			case PathKindEscapes:
+				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
+					SourceConcept: concept.Path,
+					TargetHref:    href,
+					Reason:        "path traversal denied: target escapes bundle root",
+				})
+			case PathKindReserved:
 				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
 					SourceConcept: concept.Path,
 					TargetHref:    href,
 					Reason:        "reserved index.md/log.md/AGENTS.md is navigation, not a concept",
 				})
+			case PathKindConcept:
+				addEdge(id, rp.ConceptID)
+			case PathKindAsset, PathKindSkippedMD, PathKindDirectory:
+				// Valid link to an asset, non-concept Markdown file, or directory (§6.1); not a concept edge.
 				continue
-			}
-
-			if _, exists := b.Concepts[targetID]; exists {
-				if targetID != id {
-					b.Graph[id] = append(b.Graph[id], targetID)
-					b.InboundGraph[targetID] = append(b.InboundGraph[targetID], id)
-					linkedNodes[id] = true
-					linkedNodes[targetID] = true
+			case PathKindMissing:
+				if strings.HasSuffix(strings.ToLower(rp.RelPath), ".md") {
+					b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
+						SourceConcept: concept.Path,
+						TargetHref:    href,
+						Reason:        "target concept does not exist",
+					})
+				} else if strings.Contains(rp.RelPath, "/") || strings.Contains(rp.RelPath, ".") {
+					b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
+						SourceConcept: concept.Path,
+						TargetHref:    href,
+						Reason:        "target asset does not exist",
+					})
 				}
-			} else {
+			}
+		}
+
+		// 2. Frontmatter path fields (§6.2 & §6.4): directed concept edges & confinement checks
+		if concept.SupersededBy != "" {
+			rp := b.ResolvePath(concept.Path, concept.SupersededBy)
+			switch rp.Kind {
+			case PathKindConcept:
+				addEdge(id, rp.ConceptID)
+			case PathKindEscapes:
 				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
 					SourceConcept: concept.Path,
-					TargetHref:    href,
-					Reason:        "target concept does not exist",
+					TargetHref:    concept.SupersededBy,
+					Reason:        "path traversal denied: superseded_by escapes bundle root",
+				})
+			case PathKindExternal, PathKindEmpty, PathKindFragment:
+				// Non-local target; validated separately if needed.
+			default:
+				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
+					SourceConcept: concept.Path,
+					TargetHref:    concept.SupersededBy,
+					Reason:        "superseded_by target concept does not exist",
+				})
+			}
+		}
+
+		type frontmatterPathField struct {
+			name string
+			val  string
+		}
+		var pathFields []frontmatterPathField
+		if concept.Resource != "" {
+			pathFields = append(pathFields, frontmatterPathField{"resource", concept.Resource})
+		}
+		for _, src := range concept.Sources {
+			if isPathLikeSourceResource(src.Resource) {
+				pathFields = append(pathFields, frontmatterPathField{"sources.resource", src.Resource})
+			}
+		}
+		if concept.Attestation != nil {
+			if concept.Attestation.Computation != "" {
+				pathFields = append(pathFields, frontmatterPathField{"computation", concept.Attestation.Computation})
+			}
+			if concept.Attestation.Executor != nil && concept.Attestation.Executor.Resource != "" {
+				pathFields = append(pathFields, frontmatterPathField{"executor.resource", concept.Attestation.Executor.Resource})
+			}
+			if concept.Attestation.Attester != nil && concept.Attestation.Attester.Resource != "" {
+				pathFields = append(pathFields, frontmatterPathField{"attester.resource", concept.Attestation.Attester.Resource})
+			}
+		}
+
+		for _, pf := range pathFields {
+			rp := b.ResolvePath(concept.Path, pf.val)
+			switch rp.Kind {
+			case PathKindConcept:
+				addEdge(id, rp.ConceptID)
+			case PathKindEscapes:
+				// In v0.2 bundles, sources[].resource commonly cites parent-repo docs (e.g. ../../docs/...);
+				// treat those as external provenance (never read locally) rather than broken bundle links.
+				if pf.name == "sources.resource" && b.IsV02OrEarlier() {
+					continue
+				}
+				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
+					SourceConcept: concept.Path,
+					TargetHref:    pf.val,
+					Reason:        fmt.Sprintf("path traversal denied: %s escapes bundle root", pf.name),
 				})
 			}
 		}
@@ -498,28 +774,30 @@ func (b *Bundle) buildGraph() {
 	// Also check for broken links inside directory indexes (index.md)
 	for idxPath, idxContent := range b.Indexes {
 		body := StripFences(idxContent)
-		matches := linkRegex.FindAllStringSubmatch(body, -1)
+		matches := allLinkRegex.FindAllStringSubmatch(body, -1)
 
 		for _, match := range matches {
 			href := match[1]
-			if IsExternalLink(href) {
-				continue // External URL or Qualified Scope URI: hermetic CI ignores remote target
-			}
+			rp := b.ResolvePath(idxPath, href)
 
-			targetID := b.ResolveLink(idxPath, href)
-			targetRel := targetID + ".md"
-			targetBase := path.Base(targetRel)
-
-			if strings.EqualFold(targetBase, "index.md") || strings.EqualFold(targetRel, "log.md") || strings.EqualFold(targetRel, "AGENTS.md") {
-				continue // Reserved files in indexes are standard navigation
-			}
-
-			if _, exists := b.Concepts[targetID]; !exists {
+			switch rp.Kind {
+			case PathKindEmpty, PathKindFragment, PathKindExternal, PathKindReserved,
+				PathKindConcept, PathKindAsset, PathKindSkippedMD, PathKindDirectory:
+				continue
+			case PathKindEscapes:
 				b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
 					SourceConcept: idxPath,
 					TargetHref:    href,
-					Reason:        "target concept does not exist",
+					Reason:        "path traversal denied: target escapes bundle root",
 				})
+			case PathKindMissing:
+				if strings.HasSuffix(strings.ToLower(rp.RelPath), ".md") {
+					b.BrokenLinks = append(b.BrokenLinks, BrokenLink{
+						SourceConcept: idxPath,
+						TargetHref:    href,
+						Reason:        "target concept does not exist",
+					})
+				}
 			}
 		}
 	}

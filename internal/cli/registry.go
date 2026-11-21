@@ -89,6 +89,12 @@ func init() {
 		Run:        cmdShow,
 	})
 	Register(&Command{
+		Name:       "changes",
+		Summary:    "Query concept changes within a time range (--since / --until)",
+		PrintUsage: printChangesUsage,
+		Run:        cmdChanges,
+	})
+	Register(&Command{
 		Name:       "create",
 		Summary:    "Create a new concept with automated bookkeeping",
 		PrintUsage: printCreateUsage,

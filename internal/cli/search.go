@@ -236,8 +236,12 @@ func cmdSearch(args []string) {
 		case okf.ScopeSystem:
 			scopeInfo = " (system)"
 		}
-		fmt.Printf("%2d. %-12s [%.2f] %s (%s)%s\n    %s\n    Matches: %s\n\n",
-			i+1, govBadge, r.Score, r.ConceptID, r.Type, scopeInfo, r.Description, strings.Join(r.MatchedOn, ", "))
+		supersededNote := ""
+		if r.SupersededFrom != "" {
+			supersededNote = fmt.Sprintf(" [superseded from %s]", r.SupersededFrom)
+		}
+		fmt.Printf("%2d. %-12s [%.2f] %s (%s)%s%s\n    %s\n    Matches: %s\n\n",
+			i+1, govBadge, r.Score, r.ConceptID, r.Type, scopeInfo, supersededNote, r.Description, strings.Join(r.MatchedOn, ", "))
 	}
 }
 
@@ -291,6 +295,9 @@ func cmdShow(args []string) {
 	}
 
 	fmt.Printf("ID:          %s\n", c.ID)
+	if len(res.SupersededFrom) > 0 {
+		fmt.Printf("Forwarded:   %s -> %s (superseded)\n", strings.Join(res.SupersededFrom, " -> "), c.ID)
+	}
 	fmt.Printf("Scope:       %s\n", res.Scope)
 	fmt.Printf("Type:        %s\n", c.Type)
 	fmt.Printf("Title:       %s\n", c.Title)

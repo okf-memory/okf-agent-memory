@@ -83,7 +83,7 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 	}
 
 	today := time.Now().UTC().Format("2006-01-02")
-	isV2 := b.DeclaredVer == "0.2"
+	isV2OrLater := b.DeclaredVer == "0.2" || !b.IsV02OrEarlier()
 
 	// 1. Validate sub-indexes have no frontmatter
 	for relPath, content := range b.Indexes {
@@ -114,12 +114,12 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 
 		if c.RawContent != "" && c.Type == "" && c.Body == "" {
 			// Failed parsing frontmatter entirely
-			if filepath.Base(c.Path) == "README.md" {
-				res.Errors = append(res.Errors, fmt.Sprintf("%s: README.md inside a bundle is a concept to a consumer, and has no frontmatter", at))
-			} else {
-				res.Errors = append(res.Errors, fmt.Sprintf("%s: missing YAML frontmatter block", at))
-			}
+			res.Errors = append(res.Errors, fmt.Sprintf("%s: missing YAML frontmatter block", at))
 			continue
+		}
+
+		for _, w := range c.ParseWarnings {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("%s: %s", at, w))
 		}
 
 		if strings.TrimSpace(c.Type) == "" {
@@ -131,8 +131,8 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 
 		bodyWithoutFences := StripFences(c.Body)
 
-		// v0.1 leftovers check on v0.2 declared bundle
-		if isV2 {
+		// v0.1 leftovers check on v0.2+ declared bundle
+		if isV2OrLater {
 			fm, _, hasFM := ExtractFrontmatter(c.RawContent)
 			if hasFM && (strings.Contains(fm, "timestamp:") || (c.Extra != nil && c.Extra["timestamp"] != nil)) {
 				res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: legacy 'timestamp' (v0.2 records it as 'generated: { by, at }')", at))
@@ -187,6 +187,9 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 		}
 
 		// Trust validation: verified
+		// Per OKF v0.3 §5.3, historical verifications (verified.at < generated.at)
+		// remain in the file as audit history and are excluded from the active trust tier
+		// without failing validation or emitting gate findings.
 		for i, v := range c.Verified {
 			if v.By == "" {
 				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: verified[%d] has no 'by'", at, i))
@@ -195,14 +198,8 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			}
 			if v.At == "" {
 				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: verified[%d] has no 'at' timestamp", at, i))
-			} else if vT, okV := parseTimestamp(v.At); !okV {
+			} else if _, okV := parseTimestamp(v.At); !okV {
 				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: verified[%d].at '%s' is not a valid ISO 8601 timestamp", at, i, v.At))
-			} else if c.Generated != nil && c.Generated.At != "" {
-				if genT, okGen := parseTimestamp(c.Generated.At); okGen {
-					if vT.Before(genT) {
-						res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: verified[%d].at '%s' predates generated.at '%s' (superseded verification)", at, i, v.At, c.Generated.At))
-					}
-				}
 			}
 		}
 
@@ -228,7 +225,55 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 
 		// Lifecycle validation
 		if c.Status != "" && !IsValidConceptStatus(c.Status) {
-			res.GateFindings = append(res.GateFindings, fmt.Sprintf("%s: status '%s' is not draft|stable|deprecated", at, c.Status))
+			msg := fmt.Sprintf("%s: status '%s' is not draft|stable|deprecated", at, c.Status)
+			res.GateFindings = append(res.GateFindings, msg)
+			res.Warnings = append(res.Warnings, msg)
+		}
+		if c.SupersededBy != "" {
+			if !strings.EqualFold(c.Status, "deprecated") {
+				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: 'superseded_by' only applies when status is 'deprecated'", at))
+			}
+			rp := b.ResolvePath(c.Path, c.SupersededBy)
+			switch rp.Kind {
+			case PathKindEscapes:
+				res.Errors = append(res.Errors, fmt.Sprintf("%s: superseded_by %q escapes bundle root (path traversal denied)", at, c.SupersededBy))
+			case PathKindExternal:
+				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: superseded_by %q is an external URL, not an in-bundle concept", at, c.SupersededBy))
+			case PathKindConcept:
+				if cycle := detectSupersededCycle(b, c.ID); len(cycle) > 0 {
+					res.Errors = append(res.Errors, fmt.Sprintf("%s: cyclic superseded_by chain detected (%s)", at, strings.Join(cycle, " -> ")))
+				}
+			default:
+				res.Errors = append(res.Errors, fmt.Sprintf("%s: superseded_by target %q does not exist as a concept", at, c.SupersededBy))
+			}
+		}
+
+		// Unified path-traversal confinement checks for frontmatter path fields (OKF v0.3 §6.2, CWE-22)
+		checkFrontmatterPath := func(fieldName, val string) {
+			if strings.TrimSpace(val) == "" {
+				return
+			}
+			rp := b.ResolvePath(c.Path, val)
+			if rp.Kind == PathKindEscapes {
+				res.Errors = append(res.Errors, fmt.Sprintf("%s: %s %q escapes bundle root (path traversal denied)", at, fieldName, val))
+			}
+		}
+		checkFrontmatterPath("resource", c.Resource)
+		if !b.IsV02OrEarlier() {
+			for i, s := range c.Sources {
+				if isPathLikeSourceResource(s.Resource) {
+					checkFrontmatterPath(fmt.Sprintf("sources[%d].resource", i), s.Resource)
+				}
+			}
+		}
+		if c.Attestation != nil {
+			checkFrontmatterPath("computation", c.Attestation.Computation)
+			if c.Attestation.Executor != nil {
+				checkFrontmatterPath("executor.resource", c.Attestation.Executor.Resource)
+			}
+			if c.Attestation.Attester != nil {
+				checkFrontmatterPath("attester.resource", c.Attestation.Attester.Resource)
+			}
 		}
 		if c.StaleAfter != "" {
 			if !isoDateRegex.MatchString(c.StaleAfter) {
@@ -240,6 +285,13 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 				res.StaleCount++
 				res.Warnings = append(res.Warnings, fmt.Sprintf("%s: concept will become stale soon (stale_after %s within %v)", at, c.StaleAfter, opts.StaleWithin))
 			}
+		}
+	}
+
+	// Report CWE-22 path traversal in Markdown body/index links as conformance errors.
+	for _, bl := range b.BrokenLinks {
+		if bl.Reason == "path traversal denied: target escapes bundle root" {
+			res.Errors = append(res.Errors, fmt.Sprintf("%s: link %q escapes bundle root (path traversal denied)", bl.SourceConcept, bl.TargetHref))
 		}
 	}
 
@@ -261,14 +313,14 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 			matches := entryRegex.FindAllStringSubmatch(StripFences(idxContent), -1)
 			for _, m := range matches {
 				href := m[1]
-				if IsExternalLink(href) {
+				rp := b.ResolvePath(idxPath, href)
+				if rp.Kind != PathKindConcept {
 					continue
 				}
 				listingDesc := m[2]
-				targetID := b.ResolveLink(idxPath, href)
-				if concept, ok := b.Concepts[targetID]; ok && concept.Description != "" {
+				if concept, ok := b.Concepts[rp.ConceptID]; ok && concept.Description != "" {
 					if !strings.Contains(normText(listingDesc), normText(concept.Description)) {
-						res.Warnings = append(res.Warnings, fmt.Sprintf("%s: listing for %s.md differs from concept description", idxPath, targetID))
+						res.Warnings = append(res.Warnings, fmt.Sprintf("%s: listing for %s.md differs from concept description", idxPath, rp.ConceptID))
 					}
 				}
 			}
@@ -282,11 +334,9 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 				matches := linkRegex.FindAllStringSubmatch(body, -1)
 				targets := make(map[string]bool, len(matches))
 				for _, match := range matches {
-					if IsExternalLink(match[1]) {
-						continue
-					}
-					if targetID := b.ResolveLink(idxPath, match[1]); targetID != "" {
-						targets[targetID] = true
+					rp := b.ResolvePath(idxPath, match[1])
+					if rp.Kind == PathKindConcept && rp.ConceptID != "" {
+						targets[rp.ConceptID] = true
 					}
 				}
 				indexTargets[idxPath] = targets
@@ -350,10 +400,31 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 
 	res.IsConformant = len(res.Errors) == 0
 	gateFailure := (opts.Strict && (len(b.BrokenLinks) > 0 || len(b.Orphans) > 0)) ||
-		(opts.Strict && isV2 && len(res.GateFindings) > 0) ||
+		(opts.Strict && isV2OrLater && len(res.GateFindings) > 0) ||
 		(opts.MinScore > 0 && res.Scorecard != nil && res.Scorecard.Score < opts.MinScore) ||
 		((opts.Stale || opts.StaleWithin > 0) && res.StaleCount > 0)
 	res.GatePassed = res.IsConformant && !gateFailure
 
 	return res
+}
+
+// detectSupersededCycle walks superseded_by references starting at startID
+// (regardless of status) and returns the cyclic chain if a cycle is reached.
+func detectSupersededCycle(b *Bundle, startID string) []string {
+	visited := map[string]bool{startID: true}
+	chain := []string{startID}
+	curr, ok := b.Concepts[startID]
+	for ok && strings.TrimSpace(curr.SupersededBy) != "" {
+		rp := b.ResolvePath(curr.Path, curr.SupersededBy)
+		if rp.Kind != PathKindConcept {
+			return nil
+		}
+		if visited[rp.ConceptID] {
+			return append(chain, rp.ConceptID)
+		}
+		visited[rp.ConceptID] = true
+		chain = append(chain, rp.ConceptID)
+		curr, ok = b.Concepts[rp.ConceptID]
+	}
+	return nil
 }

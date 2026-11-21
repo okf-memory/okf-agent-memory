@@ -87,8 +87,8 @@ func TestMCPHandshakeAndToolsList(t *testing.T) {
 		t.Fatalf("Expected result map in response 2, got %T", r2.Result)
 	}
 	tools, ok := r2Map["tools"].([]any)
-	if !ok || len(tools) != 6 {
-		t.Fatalf("Expected 6 tools in tools/list, got %v", r2Map["tools"])
+	if !ok || len(tools) != 7 {
+		t.Fatalf("Expected 7 tools in tools/list, got %v", r2Map["tools"])
 	}
 }
 
@@ -204,7 +204,7 @@ func TestMCPMutationMetadataSchemas(t *testing.T) {
 		}
 		schema := tool["inputSchema"].(map[string]any)
 		props := schema["properties"].(map[string]any)
-		for _, field := range []string{"type", "status", "tags"} {
+		for _, field := range []string{"type", "status", "tags", "stale_after", "change_note"} {
 			if _, ok := props[field]; !ok {
 				t.Errorf("%s schema missing %s", name, field)
 			}
@@ -260,6 +260,13 @@ func TestMCPOutputSchemasProperties(t *testing.T) {
 		}
 		if _, ok := mProps["message"]; !ok {
 			t.Errorf("%s outputSchema missing 'message'", mTool)
+		}
+	}
+
+	// okf_changes envelope
+	for _, want := range []string{"since", "until", "total", "changes"} {
+		if _, ok := props("okf_changes")[want]; !ok {
+			t.Errorf("okf_changes outputSchema missing %q", want)
 		}
 	}
 }

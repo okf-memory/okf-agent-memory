@@ -352,6 +352,14 @@
           "items": {"type": "string", "minLength": 1, "maxLength": 50},
           "description": "Optional array of searchable tags."
         },
+        "stale_after": {
+          "type": "string",
+          "description": "Optional review deadline: YYYY-MM-DD, ISO 8601 timestamp (normalized to UTC date), or relative duration (e.g. '14d', '2w', '3m', '90d')."
+        },
+        "change_note": {
+          "type": "string",
+          "description": "Optional brief note recorded in log.md explaining the creation."
+        },
         "bundle": {
           "type": "string",
           "description": "Optional path to the OKF knowledge bundle directory (defaults to 'knowledge' or project bundle)."
@@ -382,6 +390,10 @@
         },
         "message": {
           "type": "string"
+        },
+        "warning": {
+          "type": "string",
+          "description": "Optional non-fatal warning (e.g. stale_after date is in the past)."
         }
       },
       "required": [
@@ -394,7 +406,7 @@
   },
   {
     "name": "okf_update",
-    "description": "Update an existing concept's type, status, tags, title, description, or body with automatic log.md bookkeeping. Omitted fields are preserved; an empty tags array clears tags.",
+    "description": "Update an existing concept's type, status, tags, title, description, body, or stale_after with automatic log.md bookkeeping. Omitted fields are preserved; an empty tags array clears tags; empty stale_after string clears stale_after.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -431,6 +443,14 @@
           "type": "string",
           "description": "Updated markdown body content."
         },
+        "stale_after": {
+          "type": "string",
+          "description": "Updated review deadline: YYYY-MM-DD, ISO 8601 timestamp (normalized to UTC date), relative duration (e.g. '14d', '2w', '3m', '90d'), or empty string \"\" to remove the key."
+        },
+        "change_note": {
+          "type": "string",
+          "description": "Optional brief note recorded in log.md explaining the update."
+        },
         "bundle": {
           "type": "string",
           "description": "Optional path to the OKF knowledge bundle directory (defaults to 'knowledge' or project bundle)."
@@ -458,6 +478,10 @@
         },
         "message": {
           "type": "string"
+        },
+        "warning": {
+          "type": "string",
+          "description": "Optional non-fatal warning (e.g. stale_after date is in the past)."
         }
       },
       "required": [
@@ -485,6 +509,10 @@
         "description": {
           "type": "string",
           "description": "Context description explaining the relationship."
+        },
+        "change_note": {
+          "type": "string",
+          "description": "Optional brief note recorded in log.md explaining why the concepts were linked."
         },
         "bundle": {
           "type": "string",
@@ -521,6 +549,118 @@
         "source_id",
         "target_id",
         "message"
+      ]
+    }
+  },
+  {
+    "name": "okf_changes",
+    "description": "Query concepts created, updated, related, deprecated, or deleted within a time range by combining log.md history with bundle concept metadata.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "string",
+          "description": "Start of time range (inclusive): ISO date (YYYY-MM-DD), ISO 8601 timestamp, or relative duration (e.g. '1d', '2w', '3m', '48h')."
+        },
+        "until": {
+          "type": "string",
+          "description": "Optional end of time range (inclusive): ISO date (YYYY-MM-DD), ISO 8601 timestamp, or relative duration. Defaults to now."
+        },
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of changed concepts to return (default 50, max 500)."
+        },
+        "bundle": {
+          "type": "string",
+          "description": "Optional path to the OKF knowledge bundle directory (defaults to 'knowledge' or project bundle)."
+        }
+      },
+      "required": [
+        "since"
+      ]
+    },
+    "outputSchema": {
+      "type": "object",
+      "description": "Concept changes within the requested time range, sorted newest first.",
+      "properties": {
+        "since": {
+          "type": "string",
+          "description": "Resolved RFC3339 start timestamp of the query range."
+        },
+        "until": {
+          "type": "string",
+          "description": "Resolved RFC3339 end timestamp of the query range."
+        },
+        "total": {
+          "type": "integer",
+          "description": "Total number of matching concepts before applying limit."
+        },
+        "changes": {
+          "type": "array",
+          "description": "Changed concepts ordered newest first.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "concept_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "deleted": {
+                "type": "boolean"
+              },
+              "generated_at": {
+                "type": "string"
+              },
+              "generated_by": {
+                "type": "string"
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "at"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "concept_id",
+              "title",
+              "description",
+              "operations"
+            ]
+          }
+        }
+      },
+      "required": [
+        "since",
+        "until",
+        "total",
+        "changes"
       ]
     }
   }
