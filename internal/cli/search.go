@@ -34,6 +34,7 @@ Flags:
   --for-path <path>      Discover concepts governing a specific file path via code_refs
   --filter <expr>        Filter by frontmatter key-value predicates (e.g. 'type=Decision', 'verified.by=human')
   --stale-within <dur>   Filter concepts becoming stale within relative duration (e.g. '14d', '2w', '3m')
+  --with-git-freshness   Enrich staleness metadata from batched Git history (falls back to frontmatter outside Git)
   --limit <N>            Maximum number of search results to return (default: 10)
   --json                 Output results as machine-readable JSON array with BM25 scores
 
@@ -42,7 +43,7 @@ Examples:
   okf search "routing" --scope vendor
   okf search --filter "verified.by=human" knowledge
   okf search --stale-within 14d knowledge
-  okf search --for-path pkg/auth/service.go knowledge --json
+  okf search --for-path pkg/auth/service.go knowledge --with-git-freshness --json
   okf search "database connection" --filter "status=stable" --limit 5
 `)
 }
@@ -63,6 +64,7 @@ Arguments:
   [bundle]               Path to OKF bundle directory (default: 'knowledge' or '.')
 
 Flags:
+  --with-git-freshness   Enrich staleness metadata from Git history (falls back to frontmatter outside Git)
   --raw                  Output verbatim raw markdown file content
   --json                 Output parsed concept metadata and body as JSON
 
@@ -72,7 +74,7 @@ Examples:
   okf show user:preferences/style
   okf show system:corp/policies
   okf show decisions/adr-001 --raw
-  okf show architecture/auth --json
+  okf show architecture/auth --with-git-freshness --json
 `)
 }
 
@@ -87,6 +89,7 @@ func cmdSearch(args []string) {
 	forPath := fs.String("for-path", "", "Filter concepts governing a specific file path via code_refs")
 	filter := fs.String("filter", "", "Filter concepts by frontmatter key-value predicates")
 	staleWithinStr := fs.String("stale-within", "", "Filter concepts becoming stale within relative duration")
+	withGitFreshness := fs.Bool("with-git-freshness", false, "Enrich staleness metadata from Git history")
 	jsonOut := fs.Bool("json", false, "Output results as JSON")
 
 	var flagArgs []string
@@ -147,7 +150,7 @@ func cmdSearch(args []string) {
 	}
 
 	if query == "" && *forPath == "" && *filter == "" && *staleWithinStr == "" {
-		fmt.Fprintln(os.Stderr, "Usage: okf search [query] [bundle] [--scope <all|project|vendor|user|system>] [--for-path <path>] [--filter <expr>] [--stale-within <duration>] [--limit N] [--json]")
+		fmt.Fprintln(os.Stderr, "Usage: okf search [query] [bundle] [--scope <all|project|vendor|user|system>] [--for-path <path>] [--filter <expr>] [--stale-within <duration>] [--with-git-freshness] [--limit N] [--json]")
 		exitFunc(1)
 		return
 	}
@@ -164,11 +167,12 @@ func cmdSearch(args []string) {
 	}
 
 	searchOpts := okf.SearchOptions{
-		Query:       query,
-		TargetPath:  *forPath,
-		Limit:       *limit,
-		Filter:      *filter,
-		StaleWithin: staleWithin,
+		Query:            query,
+		TargetPath:       *forPath,
+		Limit:            *limit,
+		Filter:           *filter,
+		StaleWithin:      staleWithin,
+		WithGitFreshness: *withGitFreshness,
 	}
 
 	results, err := okf.SearchLayered(okf.LayeredSearchOptions{
@@ -240,8 +244,19 @@ func cmdSearch(args []string) {
 		if r.SupersededFrom != "" {
 			supersededNote = fmt.Sprintf(" [superseded from %s]", r.SupersededFrom)
 		}
-		fmt.Printf("%2d. %-12s [%.2f] %s (%s)%s%s\n    %s\n    Matches: %s\n\n",
-			i+1, govBadge, r.Score, r.ConceptID, r.Type, scopeInfo, supersededNote, r.Description, strings.Join(r.MatchedOn, ", "))
+		metaParts := []string{fmt.Sprintf("Matches: %s", strings.Join(r.MatchedOn, ", "))}
+		if r.TrustTier != "" {
+			metaParts = append(metaParts, fmt.Sprintf("Trust: %s", r.TrustTier))
+		}
+		if r.Staleness != nil && r.Staleness.LastTouchedAt != "" {
+			src := r.Staleness.Provider
+			if r.Staleness.Commit != "" {
+				src = fmt.Sprintf("%s:%s", src, r.Staleness.Commit)
+			}
+			metaParts = append(metaParts, fmt.Sprintf("Touched: %s (%s)", r.Staleness.LastTouchedAt, src))
+		}
+		fmt.Printf("%2d. %-12s [%.2f] %s (%s)%s%s\n    %s\n    %s\n\n",
+			i+1, govBadge, r.Score, r.ConceptID, r.Type, scopeInfo, supersededNote, r.Description, strings.Join(metaParts, " | "))
 	}
 }
 
@@ -264,6 +279,7 @@ func cmdShow(args []string) {
 	fs := flag.NewFlagSet("show", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "Output concept as JSON")
 	rawOut := fs.Bool("raw", false, "Output raw markdown file content")
+	withGitFreshness := fs.Bool("with-git-freshness", false, "Enrich staleness metadata from Git history")
 
 	bundleDir, flagArgs := defaultBundle(subArgs)
 	_ = fs.Parse(flagArgs)
@@ -278,6 +294,9 @@ func cmdShow(args []string) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		exitFunc(1)
 		return
+	}
+	if *withGitFreshness {
+		res.Staleness = okf.ResolveConceptStaleness(res.Concept, res.BundleDir, true)
 	}
 
 	c := res.Concept
@@ -302,6 +321,16 @@ func cmdShow(args []string) {
 	fmt.Printf("Type:        %s\n", c.Type)
 	fmt.Printf("Title:       %s\n", c.Title)
 	fmt.Printf("Description: %s\n", c.Description)
+	if res.TrustTier != "" {
+		fmt.Printf("Trust Tier:  %s\n", res.TrustTier)
+	}
+	if res.Staleness != nil && res.Staleness.LastTouchedAt != "" {
+		src := res.Staleness.Provider
+		if res.Staleness.Commit != "" {
+			src = fmt.Sprintf("%s:%s", src, res.Staleness.Commit)
+		}
+		fmt.Printf("Touched:     %s (%s)\n", res.Staleness.LastTouchedAt, src)
+	}
 	if len(c.Tags) > 0 {
 		fmt.Printf("Tags:        %s\n", strings.Join(c.Tags, ", "))
 	}

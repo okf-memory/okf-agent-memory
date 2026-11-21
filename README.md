@@ -122,6 +122,9 @@ This generates the standalone binary at `bin/okf`.
 # Validate bundle conformance, graph connectivity, and description drift
 ./bin/okf validate knowledge --strict --drift
 
+# Detect relative code drift where code_refs files changed after their governing concepts
+./bin/okf validate knowledge --drift-git
+
 # Evaluate bundle quality scorecard (3 pillars: maintenance, stewardship, integrity)
 ./bin/okf validate knowledge --scorecard
 

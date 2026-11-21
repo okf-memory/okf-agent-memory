@@ -28,6 +28,7 @@ Arguments:
 Flags:
   --strict               Gate connectivity warnings, broken links, orphans, and trust gaps as errors
   --drift                Check descriptions and code_refs for drift between index.md and concepts
+  --drift-git            Warn when code_refs files have newer Git commits than the concept (no-op outside Git)
   --stale                Gate expired review dates (stale_after) as errors
   --stale-within <dur>   Gate concepts becoming stale within relative duration (e.g. '14d', '2w', '3m')
   --agents               Validate AGENTS.md against AAG rules (AAG-001 to AAG-005) and SSoT tool symlinks
@@ -37,6 +38,7 @@ Flags:
 
 Examples:
   okf validate knowledge --strict --drift
+  okf validate knowledge --drift-git
   okf validate --agents --strict .
   okf validate knowledge --stale-within 14d
   okf validate knowledge --json
@@ -51,6 +53,7 @@ func cmdValidate(args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	strict := fs.Bool("strict", false, "Fail on broken links, orphans, and provenance gaps")
 	drift := fs.Bool("drift", false, "Check for drift between index.md and concept descriptions")
+	driftGit := fs.Bool("drift-git", false, "Warn when code_refs files have newer Git commits than the concept")
 	stale := fs.Bool("stale", false, "Fail if any concepts are stale (past stale_after)")
 	staleWithinStr := fs.String("stale-within", "", "Gate concepts becoming stale within relative duration (e.g. '14d', '2w')")
 	agents := fs.Bool("agents", false, "Validate AGENTS.md against AAG rules and SSoT tool symlinks")
@@ -99,6 +102,7 @@ func cmdValidate(args []string) {
 	res := okf.Validate(b, okf.ValidateOptions{
 		Strict:      *strict,
 		Drift:       *drift,
+		DriftGit:    *driftGit,
 		Stale:       *stale,
 		StaleWithin: staleWithin,
 		Scorecard:   *scorecard || *minScore > 0,

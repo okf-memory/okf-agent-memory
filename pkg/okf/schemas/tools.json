@@ -30,6 +30,10 @@
           "type": "integer",
           "description": "Maximum number of results (default 10)."
         },
+        "with_git_freshness": {
+          "type": "boolean",
+          "description": "When true, enrich staleness metadata from batched Git history (falls back cleanly to frontmatter outside Git)."
+        },
         "bundle": {
           "type": "string",
           "description": "Optional path to the OKF knowledge bundle directory (defaults to 'knowledge' or project bundle)."
@@ -109,6 +113,33 @@
               "origin": {
                 "type": "string",
                 "description": "Source origin indicator (e.g. 'local', '@vendor-bundle', 'user', 'system')."
+              },
+              "trust_tier": {
+                "type": "string",
+                "enum": ["unverified", "machine-confirmed", "human-reviewed"],
+                "description": "Computed OKF v0.3 trust tier from current verification events."
+              },
+              "staleness": {
+                "type": "object",
+                "description": "Computed runtime freshness metadata (never persisted to frontmatter).",
+                "properties": {
+                  "last_touched_at": {
+                    "type": "string",
+                    "description": "ISO 8601 / RFC3339 timestamp when the concept was last touched."
+                  },
+                  "commit": {
+                    "type": "string",
+                    "description": "Short Git commit hash when resolved via Git."
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": ["git", "frontmatter"],
+                    "description": "Freshness provider used: 'git' or 'frontmatter'."
+                  }
+                },
+                "required": [
+                  "provider"
+                ]
               }
             },
             "required": [
@@ -136,6 +167,10 @@
         "concept_id": {
           "type": "string",
           "description": "The concept ID or scoped reference. Bare IDs search project, user, then system. Explicit scopes stay exact: 'user:<id>', 'system:<id>', or a canonical URN such as 'okf://project/<id>'. Vendor concepts require '@bundle/<id>'."
+        },
+        "with_git_freshness": {
+          "type": "boolean",
+          "description": "When true, enrich staleness metadata from Git history (falls back cleanly to frontmatter outside Git)."
         },
         "bundle": {
           "type": "string",
@@ -196,6 +231,33 @@
             "type": "string"
           },
           "description": "Source paths or globs this concept governs."
+        },
+        "trust_tier": {
+          "type": "string",
+          "enum": ["unverified", "machine-confirmed", "human-reviewed"],
+          "description": "Computed OKF v0.3 trust tier from current verification events."
+        },
+        "staleness": {
+          "type": "object",
+          "description": "Computed runtime freshness metadata (never persisted to frontmatter).",
+          "properties": {
+            "last_touched_at": {
+              "type": "string",
+              "description": "ISO 8601 / RFC3339 timestamp when the concept was last touched."
+            },
+            "commit": {
+              "type": "string",
+              "description": "Short Git commit hash when resolved via Git."
+            },
+            "provider": {
+              "type": "string",
+              "enum": ["git", "frontmatter"],
+              "description": "Freshness provider used: 'git' or 'frontmatter'."
+            }
+          },
+          "required": [
+            "provider"
+          ]
         }
       },
       "required": [
@@ -223,6 +285,10 @@
         "stale_within": {
           "type": "string",
           "description": "Optional relative duration to fail if concepts expire within horizon (e.g. '14d', '2w')."
+        },
+        "drift_git": {
+          "type": "boolean",
+          "description": "When true, flag concepts whose code_refs files have newer Git commits than the concept's last_touched_at (graceful no-op outside Git)."
         },
         "bundle": {
           "type": "string",

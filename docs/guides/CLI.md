@@ -26,7 +26,7 @@ okf <command> [arguments] [flags]
 Audits an OKF bundle for structural conformance, graph health, provenance integrity, and lifecycle status.
 
 ```bash
-okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
+okf validate [bundle-path] [--strict] [--stale] [--drift] [--drift-git] [--json]
 ```
 
 * **Arguments**:
@@ -36,6 +36,7 @@ okf validate [bundle-path] [--strict] [--stale] [--drift] [--json]
   * `--stale`: Fails the producer gate if any concept has reached or passed its `stale_after` date.
   * `--stale-within <duration>`: Fails the producer gate if any concept will expire within the given relative horizon (e.g. `14d`, `2w`, `3m`).
   * `--drift`: Checks whether concept listings in index files differ from concept descriptions, and verifies that `code_refs` point to valid source paths.
+  * `--drift-git`: Detects relative code drift by warning when files matched by a concept's `code_refs` have newer Git commits than the concept's own `last_touched_at` timestamp. Untouched stable modules are never flagged, and non-Git environments succeed gracefully without error.
   * `--json`: Emits machine-readable JSON diagnostics.
 * **Exit Codes**:
   * `0`: Valid & conformant (producer gate passed).
@@ -70,6 +71,7 @@ okf search [query] [bundle-path] \
   [--for-path <file-or-dir>] \
   [--filter <predicate>] \
   [--stale-within <duration>] \
+  [--with-git-freshness] \
   [--limit <N>] \
   [--json]
 ```
@@ -93,8 +95,9 @@ okf search [query] [bundle-path] \
     * `--filter "tags=ci,tags=ui"` (a comma starts a new clause, so repeat the key to require several tags; concepts must have all of them. `tags=ci,ui` is rejected because `ui` is not a clause. There is no OR operator.)
     * `--filter "topics=retrieval"` (any list-valued field, built-in or custom, matches when it contains the value; `topics!=retrieval` matches when it does not, and `topics=null` matches an empty list)
   * `--stale-within <duration>`: Filters concepts that are already stale or will expire within relative horizon (e.g. `14d`, `2w`, `3m`).
+  * `--with-git-freshness`: Enriches each result's computed `staleness` object (`last_touched_at`, `commit`, `provider: "git"`) using a single batched `git log` over the bundle directory. Without this flag, `staleness` is derived cheaply from frontmatter `generated.at` (or file mtime) with `provider: "frontmatter"` and zero subprocess forks. Falls back cleanly to frontmatter outside Git.
   * `--limit <N>` (default: `10`): Maximum results to return.
-  * `--json`: Outputs machine-readable JSON array of matching concepts with governance tiers and matched fields.
+  * `--json`: Outputs machine-readable JSON array of matching concepts with governance tiers, computed `trust_tier`, `staleness`, and matched fields.
 
 #### Multi-Scope Priority Ranking & Shadowing
 
@@ -133,7 +136,7 @@ Found 2 matching concept(s) governing 'pkg/okf/types.go' in 'knowledge':
 Displays the full metadata, trust provenance, graph connections (inbound/outbound), and markdown body of a concept. Supports local concepts, external vendor packages, user memory, and system memory.
 
 ```bash
-okf show <concept-id> [bundle-path] [--json] [--raw]
+okf show <concept-id> [bundle-path] [--with-git-freshness] [--json] [--raw]
 ```
 
 * **Arguments**:
@@ -144,8 +147,9 @@ okf show <concept-id> [bundle-path] [--json] [--raw]
     * **System Concept**: `system:<concept-id>` (e.g. `system:corp/policies`)
     * **Canonical URN**: `okf://project/decisions/auth`, `okf://@nextjs-15/decisions/routing`, `okf://user/...`, `okf://system/...`
 * **Flags**:
+  * `--with-git-freshness`: Enriches the computed `staleness` metadata (`last_touched_at`, `commit`, `provider: "git"`) from Git history, falling back cleanly to frontmatter outside Git.
   * `--raw`: Emits the exact raw markdown file as stored on disk.
-  * `--json`: Emits the complete structured concept object, including the resolved `scope`.
+  * `--json`: Emits the complete structured concept object, including the resolved `scope`, computed `trust_tier`, and `staleness`.
 
 Human-readable output also includes the resolved scope. Explicit scopes never use fallback. Vendor concepts require an explicit reference.
 

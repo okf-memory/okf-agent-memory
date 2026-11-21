@@ -12,21 +12,23 @@ import (
 
 // SearchResult represents a scored concept match.
 type SearchResult struct {
-	ConceptID      string   `json:"concept_id"`
-	Title          string   `json:"title"`
-	Type           string   `json:"type"`
-	Description    string   `json:"description"`
-	Governance     string   `json:"governance,omitempty"`
-	CodeRefs       []string `json:"code_refs,omitempty"`
-	Score          float64  `json:"score"`
-	MatchedOn      []string `json:"matched_on"`
-	Tags           []string `json:"tags,omitempty"`
-	Inbound        []string `json:"inbound,omitempty"`
-	Outbound       []string `json:"outbound,omitempty"`
-	Scope          Scope    `json:"scope,omitempty"`
-	Priority       int      `json:"priority,omitempty"`
-	Origin         string   `json:"origin,omitempty"`
-	SupersededFrom string   `json:"superseded_from,omitempty"`
+	ConceptID      string         `json:"concept_id"`
+	Title          string         `json:"title"`
+	Type           string         `json:"type"`
+	Description    string         `json:"description"`
+	Governance     string         `json:"governance,omitempty"`
+	CodeRefs       []string       `json:"code_refs,omitempty"`
+	Score          float64        `json:"score"`
+	MatchedOn      []string       `json:"matched_on"`
+	Tags           []string       `json:"tags,omitempty"`
+	Inbound        []string       `json:"inbound,omitempty"`
+	Outbound       []string       `json:"outbound,omitempty"`
+	Scope          Scope          `json:"scope,omitempty"`
+	Priority       int            `json:"priority,omitempty"`
+	Origin         string         `json:"origin,omitempty"`
+	SupersededFrom string         `json:"superseded_from,omitempty"`
+	TrustTier      string         `json:"trust_tier,omitempty"`
+	Staleness      *StalenessInfo `json:"staleness,omitempty"`
 }
 
 func tokenize(s string) []string {
@@ -57,14 +59,15 @@ const MaxSearchLimit = 100
 const MaxQueryLength = 1000
 
 // SearchOptions controls search parameters including query text, path filtering,
-// YAML frontmatter metadata filters, and staleness horizons.
+// YAML frontmatter metadata filters, staleness horizons, and optional Git freshness.
 type SearchOptions struct {
-	Query       string
-	TargetPath  string
-	Limit       int
-	Filter      string
-	StaleWithin time.Duration
-	BaseTime    time.Time
+	Query            string
+	TargetPath       string
+	Limit            int
+	Filter           string
+	StaleWithin      time.Duration
+	BaseTime         time.Time
+	WithGitFreshness bool
 }
 
 // Search queries the bundle using in-memory BM25/TF-IDF token scoring over frontmatter and body.
@@ -208,6 +211,7 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 		if len(results) > limit {
 			results = results[:limit]
 		}
+		b.enrichSearchResults(results, opts.WithGitFreshness)
 		return results, nil
 	}
 
@@ -392,6 +396,7 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 		if len(results) > limit {
 			results = results[:limit]
 		}
+		b.enrichSearchResults(results, opts.WithGitFreshness)
 		return results, nil
 	}
 
@@ -444,7 +449,30 @@ func (b *Bundle) SearchAdvanced(opts SearchOptions) ([]SearchResult, error) {
 		results = results[:limit]
 	}
 
+	b.enrichSearchResults(results, opts.WithGitFreshness)
 	return results, nil
+}
+
+func (b *Bundle) enrichSearchResults(results []SearchResult, withGitFreshness bool) {
+	if len(results) == 0 {
+		return
+	}
+	var gitStaleness map[string]*StalenessInfo
+	if withGitFreshness {
+		gitStaleness = ResolveBundleStaleness(b, true)
+	}
+	for i := range results {
+		c := b.Concepts[results[i].ConceptID]
+		if c == nil {
+			continue
+		}
+		results[i].TrustTier = TrustTier(c)
+		if withGitFreshness {
+			results[i].Staleness = gitStaleness[results[i].ConceptID]
+		} else {
+			results[i].Staleness = FrontmatterStaleness(c, b.RootPath)
+		}
+	}
 }
 
 func filterRequestsDeprecated(filterExpr string) bool {

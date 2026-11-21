@@ -429,10 +429,12 @@ func SearchLayered(opts LayeredSearchOptions) ([]SearchResult, error) {
 // ScopedConceptResult represents the outcome of resolving a concept identifier across scopes.
 type ScopedConceptResult struct {
 	*Concept
-	Bundle         *Bundle  `json:"-"`
-	BundleDir      string   `json:"-"`
-	Scope          Scope    `json:"scope"`
-	SupersededFrom []string `json:"superseded_from,omitempty"`
+	Bundle         *Bundle        `json:"-"`
+	BundleDir      string         `json:"-"`
+	Scope          Scope          `json:"scope"`
+	SupersededFrom []string       `json:"superseded_from,omitempty"`
+	TrustTier      string         `json:"trust_tier,omitempty"`
+	Staleness      *StalenessInfo `json:"staleness,omitempty"`
 }
 
 // ResolveScopedConcept resolves a concept identifier across project, vendor, user, and system scopes.
@@ -571,6 +573,8 @@ func ResolveScopedConcept(rawID, defaultBundleDir, vendorRoot, userDir, systemDi
 			BundleDir:      bundleDir,
 			Scope:          showScope,
 			SupersededFrom: supersededFrom,
+			TrustTier:      TrustTier(c),
+			Staleness:      FrontmatterStaleness(c, bundleDir),
 		}, nil
 	}
 	return nil, fmt.Errorf("concept '%s' not found in '%s' or user/system scope", conceptID, projectDir)

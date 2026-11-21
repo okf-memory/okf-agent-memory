@@ -1428,3 +1428,143 @@ func TestMCP_SearchAndShow_MultiScopeLayering(t *testing.T) {
 		t.Errorf("Expected traversal show to return isError: true, got: %+v", showResps[4])
 	}
 }
+
+func TestMCPFreshnessSchemasAndTools(t *testing.T) {
+	// 1. Verify schemas advertise with_git_freshness, drift_git, trust_tier, and staleness
+	byName := map[string]map[string]any{}
+	for _, tool := range GetMCPTools() {
+		name, _ := tool["name"].(string)
+		byName[name] = tool
+	}
+	for _, name := range []string{"okf_search", "okf_show"} {
+		inProps := byName[name]["inputSchema"].(map[string]any)["properties"].(map[string]any)
+		if _, ok := inProps["with_git_freshness"]; !ok {
+			t.Errorf("%s inputSchema missing with_git_freshness", name)
+		}
+	}
+	valInProps := byName["okf_validate"]["inputSchema"].(map[string]any)["properties"].(map[string]any)
+	if _, ok := valInProps["drift_git"]; !ok {
+		t.Errorf("okf_validate inputSchema missing drift_git")
+	}
+
+	searchItemProps := byName["okf_search"]["outputSchema"].(map[string]any)["properties"].(map[string]any)["results"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	for _, field := range []string{"trust_tier", "staleness"} {
+		if _, ok := searchItemProps[field]; !ok {
+			t.Errorf("okf_search outputSchema item missing %s", field)
+		}
+	}
+	showOutProps := byName["okf_show"]["outputSchema"].(map[string]any)["properties"].(map[string]any)
+	for _, field := range []string{"trust_tier", "staleness"} {
+		if _, ok := showOutProps[field]; !ok {
+			t.Errorf("okf_show outputSchema missing %s", field)
+		}
+	}
+
+	// 2. Functional test inside a real Git repo
+	requireGit(t)
+	repoDir := t.TempDir()
+	runGit(t, repoDir, nil, "init")
+
+	bundleDir := filepath.Join(repoDir, "knowledge")
+	if err := os.MkdirAll(filepath.Join(bundleDir, "decisions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoDir, "pkg/api"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "pkg/api/handler.go"), []byte("package api\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "index.md"), []byte("---\nokf_version: \"0.3\"\n---\n# Index\n- [API Rule](decisions/api.md) - API design rule\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundleDir, "decisions/api.md"), []byte(`---
+type: Decision
+title: API Rule
+description: API design rule
+code_refs:
+  - pkg/api/handler.go
+generated:
+  by: agent/mcp
+  at: "2026-04-01T00:00:00Z"
+verified:
+  - by: human:alice
+    at: "2026-04-02T00:00:00Z"
+---
+API body
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t1 := "2026-08-01T10:00:00+00:00"
+	runGit(t, repoDir, nil, "add", ".")
+	runGit(t, repoDir, []string{"GIT_AUTHOR_DATE=" + t1, "GIT_COMMITTER_DATE=" + t1}, "commit", "-m", "initial")
+	expectedHash := runGit(t, repoDir, nil, "rev-parse", "--short", "HEAD")
+
+	// Newer code commit so drift_git flags decisions/api.md
+	if err := os.WriteFile(filepath.Join(repoDir, "pkg/api/handler.go"), []byte("package api\nfunc Handle() {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t2 := "2026-08-05T10:00:00+00:00"
+	runGit(t, repoDir, nil, "add", "pkg/api/handler.go")
+	runGit(t, repoDir, []string{"GIT_AUTHOR_DATE=" + t2, "GIT_COMMITTER_DATE=" + t2}, "commit", "-m", "update handler")
+
+	bPath := jsonPath(bundleDir)
+	inputs := []string{
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bPath + `","query":"API","scope":"project"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bPath + `","query":"API","scope":"project","with_git_freshness":true}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"okf_show","arguments":{"bundle":"` + bPath + `","concept_id":"decisions/api","with_git_freshness":true}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"okf_validate","arguments":{"bundle":"` + bPath + `","strict":false,"drift_git":true}}}`,
+		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"okf_search","arguments":{"bundle":"` + bPath + `","query":"API","with_git_freshness":"yes"}}}`,
+	}
+
+	resps := runMCPConversation(t, bundleDir, inputs)
+	if len(resps) != 5 {
+		t.Fatalf("expected 5 responses, got %d", len(resps))
+	}
+
+	// id 1: default search -> frontmatter
+	r1 := resps[0].Result.(map[string]any)["structuredContent"].(map[string]any)["results"].([]any)[0].(map[string]any)
+	if r1["trust_tier"] != TrustTierHumanReviewed {
+		t.Errorf("id 1 expected trust_tier human-reviewed, got %v", r1["trust_tier"])
+	}
+	if r1["staleness"].(map[string]any)["provider"] != FreshnessProviderFrontmatter {
+		t.Errorf("id 1 expected frontmatter provider, got %v", r1["staleness"])
+	}
+
+	// id 2: git-enriched search -> git + expectedHash
+	r2 := resps[1].Result.(map[string]any)["structuredContent"].(map[string]any)["results"].([]any)[0].(map[string]any)
+	st2 := r2["staleness"].(map[string]any)
+	if st2["provider"] != FreshnessProviderGit || st2["commit"] != expectedHash {
+		t.Errorf("id 2 expected git provider + %s, got %v", expectedHash, st2)
+	}
+
+	// id 3: git-enriched show -> git + expectedHash + trust_tier
+	r3 := resps[2].Result.(map[string]any)["structuredContent"].(map[string]any)
+	if r3["trust_tier"] != TrustTierHumanReviewed {
+		t.Errorf("id 3 expected trust_tier human-reviewed, got %v", r3["trust_tier"])
+	}
+	st3 := r3["staleness"].(map[string]any)
+	if st3["provider"] != FreshnessProviderGit || st3["commit"] != expectedHash {
+		t.Errorf("id 3 expected git provider + %s, got %v", expectedHash, st3)
+	}
+
+	// id 4: validate with drift_git: true -> warning for decisions/api.md
+	r4 := resps[3].Result.(map[string]any)["structuredContent"].(map[string]any)
+	warns, _ := r4["warnings"].([]any)
+	foundDrift := false
+	for _, w := range warns {
+		if s, ok := w.(string); ok && strings.Contains(s, "decisions/api.md") && strings.Contains(s, "newer Git commit") {
+			foundDrift = true
+		}
+	}
+	if !foundDrift {
+		t.Errorf("id 4 expected drift_git warning for decisions/api.md, got %v", warns)
+	}
+
+	// id 5: invalid non-boolean with_git_freshness -> isError: true
+	r5 := resps[4].Result.(map[string]any)
+	if r5["isError"] != true {
+		t.Errorf("id 5 expected isError: true for non-boolean with_git_freshness, got %+v", r5)
+	}
+}

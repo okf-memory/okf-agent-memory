@@ -475,6 +475,15 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 				limit = 100
 			}
 		}
+		withGitFreshness := false
+		if raw, exists := callParams.Arguments["with_git_freshness"]; exists && raw != nil {
+			v, ok := raw.(bool)
+			if !ok {
+				s.sendToolResult(req.ID, "Invalid arguments: argument 'with_git_freshness' must be a boolean", nil, true)
+				return
+			}
+			withGitFreshness = v
+		}
 
 		vendorRoot := filepath.Join(".okf", "vendor")
 		if s.rootDir != "" {
@@ -491,11 +500,12 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			SystemDir:  ResolveSystemDir(),
 			Scope:      scope,
 			SearchOpts: SearchOptions{
-				Query:       query,
-				TargetPath:  forPath,
-				Limit:       limit,
-				Filter:      filter,
-				StaleWithin: staleWithin,
+				Query:            query,
+				TargetPath:       forPath,
+				Limit:            limit,
+				Filter:           filter,
+				StaleWithin:      staleWithin,
+				WithGitFreshness: withGitFreshness,
 			},
 		})
 		if err != nil {
@@ -516,6 +526,15 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			return
 		}
 		conceptID = strings.TrimSpace(conceptID)
+		withGitFreshness := false
+		if raw, exists := callParams.Arguments["with_git_freshness"]; exists && raw != nil {
+			v, ok := raw.(bool)
+			if !ok {
+				s.sendToolResult(req.ID, "Invalid arguments: argument 'with_git_freshness' must be a boolean", nil, true)
+				return
+			}
+			withGitFreshness = v
+		}
 
 		vendorRoot := filepath.Join(".okf", "vendor")
 		if s.rootDir != "" {
@@ -530,6 +549,9 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			s.sendToolResult(req.ID, fmt.Sprintf("%v", err), nil, true)
 			return
 		}
+		if withGitFreshness {
+			res.Staleness = ResolveConceptStaleness(res.Concept, res.BundleDir, true)
+		}
 		resJSON, _ := json.Marshal(res)
 		s.sendToolResult(req.ID, string(resJSON), res, false)
 
@@ -541,6 +563,15 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 		stale := false
 		if stVal, ok := callParams.Arguments["stale"].(bool); ok {
 			stale = stVal
+		}
+		driftGit := false
+		if raw, exists := callParams.Arguments["drift_git"]; exists && raw != nil {
+			v, ok := raw.(bool)
+			if !ok {
+				s.sendToolResult(req.ID, "Invalid arguments: argument 'drift_git' must be a boolean", nil, true)
+				return
+			}
+			driftGit = v
 		}
 		staleWithinStr, err := getStringArg(callParams.Arguments, "stale_within", 100, false)
 		if err != nil {
@@ -556,7 +587,7 @@ func (s *mcpServer) handleToolCall(req jsonRPCRequest) {
 			}
 			staleWithin = d
 		}
-		res := Validate(b, ValidateOptions{Strict: strict, Drift: true, Stale: stale, StaleWithin: staleWithin})
+		res := Validate(b, ValidateOptions{Strict: strict, Drift: true, DriftGit: driftGit, Stale: stale, StaleWithin: staleWithin})
 		if res.Errors == nil {
 			res.Errors = []string{}
 		}

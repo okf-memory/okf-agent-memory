@@ -45,6 +45,7 @@ type ValidationResult struct {
 type ValidateOptions struct {
 	Strict      bool
 	Drift       bool
+	DriftGit    bool
 	Stale       bool
 	StaleWithin time.Duration
 	Scorecard   bool
@@ -395,6 +396,10 @@ func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 				}
 			}
 		}
+	}
+
+	if opts.DriftGit {
+		checkGitCodeDrift(b, res)
 	}
 
 	if opts.Scorecard || opts.MinScore > 0 {
