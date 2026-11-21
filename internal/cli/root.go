@@ -41,7 +41,7 @@ func Execute(args []string, info BuildInfo) int {
 
 	switch cmdName {
 	case "version", "--version", "-v":
-		fmt.Printf("okf version %s (OKF v0.2 specification)\n", Version)
+		fmt.Printf("okf version %s (OKF v0.3 specification)\n", Version)
 		return 0
 	case "help", "--help", "-h":
 		if len(cmdArgs) > 0 {

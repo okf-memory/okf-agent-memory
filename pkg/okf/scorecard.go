@@ -34,7 +34,7 @@ type ScorecardResult struct {
 //   - Unattributed concepts receive 0 points.
 //
 // 3. Graph & Conformance Integrity (30%):
-//   - Strict OKF v0.2 validation starting at 100 base points.
+//   - Strict OKF v0.3 validation starting at 100 base points.
 //   - Errors: -25 pts each, broken links: -15 pts each, orphans: -10 pts each, warnings: -5 pts each.
 func ComputeScorecard(b *Bundle) *ScorecardResult {
 	if b == nil || len(b.Concepts) == 0 {

@@ -180,13 +180,17 @@ func printValidationOutput(w io.Writer, res *okf.ValidationResult, bundleDir str
 
 	gateCount := len(res.GateFindings) + len(res.BrokenLinks) + len(res.Orphans)
 	warnCount := len(res.Warnings)
+	specLabel := "v0.3"
+	if res.DeclaredVer != "" {
+		specLabel = "v" + res.DeclaredVer
+	}
 	if strict {
-		p("\nOKF v0.2 check of \"%s\" (%s): %d concept(s), %d error(s), %d gate finding(s), %d warning(s); %d broken link(s), %d orphan(s), %d stale%s. ",
-			bundleDir, verStr, res.ConceptCount, len(res.Errors), gateCount, warnCount, len(res.BrokenLinks), len(res.Orphans), res.StaleCount, flagSummary)
+		p("\nOKF %s check of \"%s\" (%s): %d concept(s), %d error(s), %d gate finding(s), %d warning(s); %d broken link(s), %d orphan(s), %d stale%s. ",
+			specLabel, bundleDir, verStr, res.ConceptCount, len(res.Errors), gateCount, warnCount, len(res.BrokenLinks), len(res.Orphans), res.StaleCount, flagSummary)
 	} else {
 		warnCount += gateCount
-		p("\nOKF v0.2 check of \"%s\" (%s): %d concept(s), %d error(s), %d warning(s); %d broken link(s), %d orphan(s), %d stale%s. ",
-			bundleDir, verStr, res.ConceptCount, len(res.Errors), warnCount, len(res.BrokenLinks), len(res.Orphans), res.StaleCount, flagSummary)
+		p("\nOKF %s check of \"%s\" (%s): %d concept(s), %d error(s), %d warning(s); %d broken link(s), %d orphan(s), %d stale%s. ",
+			specLabel, bundleDir, verStr, res.ConceptCount, len(res.Errors), warnCount, len(res.BrokenLinks), len(res.Orphans), res.StaleCount, flagSummary)
 	}
 
 	switch {

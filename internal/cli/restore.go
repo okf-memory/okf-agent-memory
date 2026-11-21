@@ -139,7 +139,7 @@ func runRestore(registryURL string, force bool, minScores ...int) {
 
 		if _, err := os.Stat(filepath.Join(staging.Dir, "index.md")); os.IsNotExist(err) {
 			rollback()
-			fmt.Fprintf(os.Stderr, "Error: bundle %q is not a valid OKF v0.2 bundle: missing index.md (installation rolled back)\n", manifest.ID)
+			fmt.Fprintf(os.Stderr, "Error: bundle %q is not a valid OKF bundle: missing index.md (installation rolled back)\n", manifest.ID)
 			exitFunc(1)
 			return
 		}

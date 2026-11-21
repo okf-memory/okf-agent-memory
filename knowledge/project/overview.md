@@ -8,11 +8,11 @@ generated: { by: agent/gemini-3.7-flash, at: 2026-09-01T09:43:00Z }
 status: stable
 sources:
   - id: convention
-    resource: ../../docs/spec/CONVENTION.md
+    resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/spec/CONVENTION.md
     title: OKF Agent Memory Convention v0.1
     last_modified: 2026-08-27
   - id: roadmap
-    resource: ../../docs/project/ROADMAP.md
+    resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/project/ROADMAP.md
     title: OKF Agent Memory Project Roadmap
     last_modified: 2026-08-27
   - id: spec

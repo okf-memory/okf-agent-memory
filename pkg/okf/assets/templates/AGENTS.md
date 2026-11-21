@@ -1,6 +1,6 @@
 # AGENTS.md - DMAA Protocol v0.1 - Instructions for AI Agents in `{{PROJECT_NAME}}`
 
-> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) -- Open Knowledge Format (OKF) v0.2 persistent project memory for AI agents.
+> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) -- Open Knowledge Format (OKF) v0.3 persistent project memory for AI agents.
 
 Welcome to the **{{PROJECT_NAME}}** repository. Define domain-specific behavioral rules in Agent Action Grammar (AAG) alongside the persistent memory protocol:
 

@@ -1,6 +1,6 @@
 # AGENTS.md - DMAA Protocol v0.1 - Instructions for AI Agents in `okf-agent-memory`
 
-> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) -- Open Knowledge Format (OKF) v0.2 persistent project memory for AI agents.
+> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) -- Open Knowledge Format (OKF) v0.3 persistent project memory for AI agents.
 
 ## 0. Project & Domain Codex
 - TONE: style == direct_concise, zero_pleasantries

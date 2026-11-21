@@ -6,7 +6,7 @@ tags: [release, playbook, runbook, distribution, workflow, tagging]
 generated: { by: agent/mcp, at: "2026-10-12T10:04:02Z" }
 status: stable
 sources:
-  - resource: ../../docs/project/playbooks/RELEASE_PLAYBOOK.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/project/playbooks/RELEASE_PLAYBOOK.md
     id: release-playbook
     title: OKF Agent Memory Release Playbook
     last_modified: 2026-09-18

@@ -91,7 +91,7 @@ func GenerateAgentsMarkdown(projectName, domainName string) (string, error) {
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "# AGENTS.md - DMAA Protocol v0.1 - Instructions for AI Agents in `%s`\n\n", projectName)
-	sb.WriteString("> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) -- Open Knowledge Format (OKF) v0.2 persistent project memory for AI agents.\n\n")
+	sb.WriteString("> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) -- Open Knowledge Format (OKF) v0.3 persistent project memory for AI agents.\n\n")
 	fmt.Fprintf(&sb, "## 0. Project & Domain Codex (%s)\n", domain.Title)
 	for _, line := range domain.CodexLines {
 		sb.WriteString(line)

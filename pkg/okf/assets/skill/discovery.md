@@ -1,6 +1,6 @@
 # Discovery & Exploration Guide
 
-Persistent memory is only useful if agents read existing knowledge before acting. This guide explains how to discover, search, and navigate an OKF v0.2 knowledge bundle efficiently without overflowing context windows.
+Persistent memory is only useful if agents read existing knowledge before acting. This guide explains how to discover, search, and navigate an OKF v0.3 knowledge bundle efficiently without overflowing context windows.
 
 ---
 

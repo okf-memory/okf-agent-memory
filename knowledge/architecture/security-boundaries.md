@@ -2,7 +2,7 @@
 type: Decision
 title: Bundle Isolation and Mutation Security Boundaries
 description: "Defensive security architecture enforcing canonical bundle boundaries, symlink containment, path traversal prevention for local mutations and for untrusted remote hub, sync and registry input, and frontmatter injection defense."
-generated: { by: agent/mcp, at: "2026-11-05T22:08:00Z" }
+generated: { by: agent/mcp, at: "2026-11-21T10:57:43Z" }
 ---
 
 # Bundle Isolation and Mutation Security Boundaries
@@ -13,11 +13,12 @@ OKF Agent Memory is designed to be written, updated, and queried by autonomous A
 
 ## Security Controls & Defense-in-Depth
 
-The tooling layer enforces defensive confinement across eight critical choke-points:
+The tooling layer enforces defensive confinement across nine critical choke-points:
 
-### 1. Canonical Bundle Confinement (`ensureWithinRoot`)
+### 1. Canonical Bundle Confinement (`ensureWithinRoot` & `ResolvePath`)
 All file reads in `LoadBundle` and writes in `SaveConcept`, `UpdateParentIndex`, and `AppendLogEntry` resolve symlinks and compare canonical paths against the bundle root via `filepath.Rel`.
 - Traversal via relative parent references (`..`) or absolute paths escaping the bundle directory is strictly denied.
+- Unified path resolution (`(*Bundle).ResolvePath`, OKF v0.3) enforces CWE-22 confinement across both Markdown body/index links and frontmatter path fields (`resource`, `superseded_by`, `sources[].resource`, `computation`, `executor.resource`, `attester.resource`), rejecting `%2e%2e`, backslashes, Windows drives, and UNC paths.
 - The bundle root is absolutised **before** its symlinks are resolved. A relative root under a symlinked working directory (macOS `/tmp` → `/private/tmp`) otherwise stayed unresolved while the target resolved to the real path, and every legitimate write was refused as an escape.
 - Root-reserved files (`index.md`, `log.md`, `AGENTS.md`) cannot be overwritten as arbitrary concept documents regardless of letter case (`strings.EqualFold`). Subdirectory concepts (e.g. `architecture/agents.md`) remain permissible.
 
@@ -35,9 +36,10 @@ The bundle root itself may be a symlink, because users legitimately link a bundl
 - The walk always runs over the resolved root. Walking the unresolved path loaded an empty bundle silently, because `filepath.WalkDir` does not follow a symlink at its root.
 
 ### 3. Frontmatter & Metadata Injection Defense (`sanitizeConceptMetadata`)
-Metadata fields (`type`, `title`, `description`, `actor`) are strictly validated prior to serialization:
+Metadata fields (`type`, `title`, `description`, `stale_after`, `superseded_by`, `actor`) are strictly validated prior to serialization:
 - Newline characters (`\r`, `\n`) are rejected in scalar metadata fields, preventing YAML attribute smuggling or forged verification states (`verified.by: human`).
 - The YAML document delimiter (`---`) is forbidden within metadata values.
+- Body smuggling checks (`frontmatterSmuggleRegex`) block nested `---` blocks containing reserved or protected keys (`verified`, `governance`, `generated`, `type`, `status`, `superseded_by`, `code_refs`, `stale_after`, `x-okf-memory-protected`).
 - Special scalar characters (`:`, `&`, `"`, etc.) are quoted safely in YAML serialization without escaping HTML entities.
 
 ### 4. MCP Server Root Confinement (`resolveBundleDir`)
@@ -54,7 +56,7 @@ OKF bundles are designed for shared Git repository version control:
 
 ### 6. Human Verification Provenance (`ensureNoForgedHumanVerification`)
 `SaveConcept` refuses to let a non-human actor add a human verification:
-- A human identity is `human`, `human:*`, or `human/*`, compared case-insensitively (`IsHumanIdentity`). The `verified.by=human` filter uses the same definition, so the guard and the filter cannot disagree.
+- A human identity is `human`, `human:*`, or `human/*`, compared case-insensitively (`IsHumanIdentity`). `team:` actors are valid but never qualify as human.
 - An agent may preserve `verified` entries already recorded in the concept file. Adding one, or altering the timestamp of an existing one, is rejected. A new concept inherits nothing from an existing file at its path.
 - Scope of the guarantee: the actor is self-declared. The MCP server fixes it to `agent/mcp`, so the guard is effective there. A CLI user can still pass `--actor human/...`, so for the CLI it guards against accidental or injected forgery, not against a deliberate caller.
 
@@ -72,6 +74,13 @@ To prevent silent Read-Modify-Write (RMW) lost updates when parallel subagents, 
 - **Stage 2a (Transactional RMW Scope)**: `UpdateConcept` (used by `okf update` and MCP `okf_update`) and `RelateConcepts` (`okf relate` and MCP `okf_relate`) acquire the bundle lock **before** calling `LoadBundle`, ensuring concurrent updates or link insertions on the same concept execute strictly in sequence against the latest committed disk state.
 - **Stage 2b (Optimistic Concurrency Check / CAS)**: `LoadBundle` records the SHA-256 digest (`sourceHash`) of each loaded concept file. When `SaveConcept` writes an existing concept (`IsNew: false`) that was loaded via `LoadBundle` outside `UpdateConcept`, it verifies inside the bundle lock that the on-disk file still matches `sourceHash`, returning `ErrConcurrentModification` if another writer modified the file in the interim.
 
+### 9. Programmatic Write Protection (`ensureWriteAllowed`)
+To prevent autonomous agents from mutating or degrading critical human-authored policies, ADRs, or active code freezes:
+- **Protected Extension Lock (`x-okf-memory-protected: true`)**: Orthogonal to `governance`, any concept declaring `x-okf-memory-protected: true` on disk rejects edits from non-human actors (`!IsHumanIdentity(actor)`), including attempts to strip or unset the flag (`ErrProtectedConcept`).
+- **`governance: hold` Downgrade Guard**: Non-human actors cannot downgrade or clear an existing `governance: hold` on disk, even if `x-okf-memory-protected: true` is omitted.
+- **CLI-Only Override**: Human operators may override via CLI `okf update --allow-protected` (`SaveOptions.AllowProtected: true`). No override parameter is ever exposed in MCP tools (`pkg/okf/mcp.go`, `tools.json`).
+- **Provenance Validation**: `okf validate --strict` flags protected concepts lacking human provenance (`generated.by: human:...` or a current human `verified` entry).
+
 ## Relationships
 
 - Defined as part of Layer 4 in [layers](layers.md).
@@ -80,3 +89,4 @@ To prevent silent Read-Modify-Write (RMW) lost updates when parallel subagents, 
 # Related Concepts
 - [MCP Tool Security & Untrusted Agent Input](../convention/mcp-agent-safety.md): Behavioral MCP guidelines complement deterministic boundaries
 - [Automated Security Auditing & Defensive Verification Workflow](../convention/security-audit.md): Proactive adversarial auditing and verification pipeline
+- [OKF v0.3 Conformance, Lifecycle Forwarding & Freshness Architecture](okf-v03-conformance.md): Unified path confinement and trust-tier rules

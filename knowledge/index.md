@@ -1,10 +1,13 @@
 ---
-okf_version: "0.2"
+okf_version: "0.3"
+title: "OKF Agent Memory Knowledge Base"
+description: "Persistent architecture, governance, conventions, requirements, and roadmap knowledge for the okf-agent-memory repository."
+license: "MIT"
 ---
 
 # OKF Agent Memory Knowledge Base
 
-The persistent knowledge corpus for the `okf-agent-memory` project, structured as a conformant Open Knowledge Format (OKF) v0.2 bundle.
+The persistent knowledge corpus for the `okf-agent-memory` project, structured as a conformant Open Knowledge Format (OKF) v0.3 bundle.
 
 # Project
 * [OKF Agent Memory Overview](project/overview.md) - A domain-neutral persistent project-memory system for AI agents based on the Open Knowledge Format (OKF) v0.2.

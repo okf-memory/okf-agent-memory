@@ -1,11 +1,11 @@
 ---
 name: okf-agent-memory
-description: Maintain persistent, domain-neutral project memory for AI agents using Open Knowledge Format (OKF) v0.2 bundles and the deterministic okf Go toolchain. Use whenever project knowledge, decisions, runbooks, research, client notes, or domain discoveries must survive conversational resets.
+description: Maintain persistent, domain-neutral project memory for AI agents using Open Knowledge Format (OKF) v0.3 bundles and the deterministic okf Go toolchain. Use whenever project knowledge, decisions, runbooks, research, client notes, or domain discoveries must survive conversational resets.
 ---
 
 # OKF Agent Memory Skill (AAG Spec v0.1)
 
-Teaches AI agents deterministic interaction with an Open Knowledge Format (OKF v0.2) bundle (`knowledge/`).
+Teaches AI agents deterministic interaction with an Open Knowledge Format (OKF v0.3) bundle (`knowledge/`).
 
 ## 0. Project & Domain Codex
 - GOAL: maintain(high_factual_integrity, domain_neutrality, strict_determinism)

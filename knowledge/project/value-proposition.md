@@ -14,7 +14,7 @@ sources:
     resource: ../architecture/tooling-decision.md
     title: Go Single-Binary CLI & MCP Architecture Decision
   - id: convention
-    resource: ../../docs/spec/CONVENTION.md
+    resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/spec/CONVENTION.md
     title: OKF Agent Memory Convention v0.1
 ---
 

@@ -4,10 +4,10 @@ title: "Project Roadmap & Development Milestones"
 description: "Phased implementation roadmap from specification validation to Go library, CLI tooling, cross-agent testing, and quality scorecards."
 resource: "https://github.com/okf-memory/okf-agent-memory"
 tags: [roadmap, milestones, phases, planning]
-generated: { by: agent/mcp, at: "2026-11-05T22:41:45Z" }
+generated: { by: agent/mcp, at: "2026-11-21T10:57:45Z" }
 status: stable
 sources:
-  - resource: ../../docs/project/ROADMAP.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/project/ROADMAP.md
     id: roadmap
     title: OKF Agent Memory Project Roadmap
     last_modified: 2026-08-27
@@ -15,7 +15,7 @@ sources:
 
 # Project Roadmap & Development Milestones
 
-The project progresses through 21 structured phases designed to take OKF Agent Memory from draft convention to a production-ready standard.[^roadmap]
+The project progresses through 22 structured phases designed to take OKF Agent Memory from draft convention to a production-ready standard.[^roadmap]
 
 ## Implementation Phases
 
@@ -42,6 +42,7 @@ The project progresses through 21 structured phases designed to take OKF Agent M
 | **Phase 19**| **OKF Registry & Multi-Scope Vendor Layering** | **Completed** | Decentralized registry client (`registry.okf-memory.dev`), zero-dep `okf.lock`, `okf pull`, `okf restore`, `okf vendor`, multi-scope BM25 indexing (`okf://`), root `index.md` scope isolation (`scopes: [...]`), streaming directory promotion, and post-install rollback. |
 | **Phase 20**| **Explicit Concept Overrides & Upstream Provenance** | **Planned** | Replace implicit path-shadowing with explicit frontmatter `overrides: <target-id|urn>`, cross-scope provenance tracking, DAG override suppression in layered search, and upstream drift warnings on `okf update`. |
 | **Phase 21**| **Bundle Quality Scorecards & Pre-Pull Gating** | **Completed** | Canonical scorecard engine (`pkg/okf/scorecard.go`), 3-pillar scoring (maintenance 35%, stewardship 35%, integrity 30%), CLI gating with atomic rollback (`okf pull --min-score <N>`, `okf restore --min-score <N>`), and registry SSoT integration. |
+| **Phase 22**| **OKF v0.3 Conformance, Write Protection & Freshness** | **Completed** | Full OKF v0.3 conformance (root `index.md` metadata, lossless `x-` extensions, non-OKF Markdown skipping, `superseded_by` forwarding, `TrustTier` & `team:` actors, unified file-relative `ResolvePath` with v0.2 fallback), programmatic write protection (`x-okf-memory-protected: true`, `hold` downgrade guard, CLI `--allow-protected`), `stale_after` write support, `okf changes --since` / `okf_changes` with `change_note`, and opt-in Git freshness (`--with-git-freshness`, `--drift-git`) shipped in `v0.9.0`. |
 
 ## Inter-Concept Connections
 

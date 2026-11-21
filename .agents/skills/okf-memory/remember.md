@@ -30,7 +30,7 @@ If the answer is **No**, do not write it to persistent memory.
 
 ## 3. Domain Neutrality & Concept Types
 
-OKF v0.2 is completely domain-neutral. You can define and use semantic types that fit the project domain:
+OKF v0.3 is completely domain-neutral. You can define and use semantic types that fit the project domain:
 
 - **Software Engineering**: `Decision`, `Architecture`, `Fact`, `Requirement`, `Component`, `Bug`
 - **Coaching & Consulting**: `Client`, `Session`, `Goal`, `Observation`, `Process`, `ActionItem`

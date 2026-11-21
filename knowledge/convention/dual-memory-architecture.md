@@ -7,15 +7,15 @@ tags: [architecture, dmaa, aag, memory-model, instructions, context-efficiency, 
 generated: { by: agent/mcp, at: "2026-10-04T20:09:36Z" }
 status: stable
 sources:
-  - resource: ../../docs/spec/DUAL_MEMORY_AGENT_ARCHITECTURE_RFC.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/spec/DUAL_MEMORY_AGENT_ARCHITECTURE_RFC.md
     id: dmaa-rfc
     title: RFC Dual-Memory Agent Architecture v0.1
     last_modified: 2026-09-15
-  - resource: ../../docs/spec/AGENT_ACTION_GRAMMAR_RFC.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/spec/AGENT_ACTION_GRAMMAR_RFC.md
     id: aag-rfc
     title: RFC Agent Action Grammar v0.1
     last_modified: 2026-09-15
-  - resource: ../../docs/guides/AGENT_INSTRUCTION_BEST_PRACTICES.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/guides/AGENT_INSTRUCTION_BEST_PRACTICES.md
     id: best-practices
     title: Best Practices for Agent Instructions in AGENTS.md
     last_modified: 2026-09-15

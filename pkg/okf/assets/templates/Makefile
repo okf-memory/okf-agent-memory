@@ -5,7 +5,7 @@ BUNDLE := knowledge
 
 all: validate
 
-## validate: Run strict OKF v0.2 validation on the knowledge/ bundle
+## validate: Run strict OKF v0.3 validation on the knowledge/ bundle
 validate:
 	@$(OKF_BIN) validate $(BUNDLE) --strict --drift
 

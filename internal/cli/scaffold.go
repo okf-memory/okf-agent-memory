@@ -13,7 +13,7 @@ import (
 // ============================================================================
 
 func printInitUsage() {
-	fmt.Printf(`Initialize a new OKF v0.2 bundle with root index.md and log.md.
+	fmt.Printf(`Initialize a new OKF v0.3 bundle with root index.md and log.md.
 
 Usage:
   okf init [path]
@@ -61,7 +61,7 @@ func cmdInit(args []string) {
 		fmt.Fprintf(os.Stderr, "Error initializing bundle: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Initialized OKF v0.2 bundle in '%s'\n", bundleDir)
+	fmt.Printf("Initialized OKF v0.3 bundle in '%s'\n", bundleDir)
 }
 
 func cmdBootstrap(args []string) {

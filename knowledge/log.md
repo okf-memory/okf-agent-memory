@@ -1,3 +1,9 @@
+## 2026-11-21
+* **Update**: Updated concept `roadmap/milestones.md`.
+* **Update**: Updated concept `requirements/mutation-metadata.md`.
+* **Update**: Updated concept `architecture/security-boundaries.md`.
+* **Creation**: Documented concept `architecture/okf-v03-conformance.md` (OKF v0.3 Conformance, Lifecycle Forwarding & Freshness Architecture).
+
 ## 2026-11-05
 * **Update**: Updated concept `roadmap/milestones.md`.
 * **Update**: Updated concept `convention/contributing.md`.

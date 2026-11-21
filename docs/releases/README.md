@@ -4,6 +4,7 @@ Historical release notes for **OKF Agent Memory**.
 
 | Version | Release Date | Highlights |
 | :--- | :--- | :--- |
+| [**v0.9.0**](./v0.9.0.md) | 2026-11-21 | OKF v0.3 Conformance (root `index.md` metadata, lossless `x-` extensions, `superseded_by` forwarding, v0.3 `TrustTier` & `team:` actors, unified file-relative paths with v0.2 fallback — breaking), Programmatic Write Protection (`x-okf-memory-protected` & `hold` downgrade guard), `okf changes --since` / `okf_changes` + `change_note`, `stale_after` Write Support, Computed Trust Tiers & Opt-In Git Freshness (`--with-git-freshness`, `--drift-git`) |
 | [**v0.8.0**](./v0.8.0.md) | 2026-11-05 | Bundle Scope Isolation (`scopes` in root `index.md`), Two-Stage Local Write Concurrency Protection, Multi-Writer Conflict Fork Hashing (#60, PR #66), Automatic SSoT Symlinks in `okf bootstrap`, Removal of `--scope bundle` Alias (breaking) |
 | [**v0.7.2**](./v0.7.2.md) | 2026-10-28 | Remote Path Containment in Hub Sync & Registry Installs (#64), Staged Registry Rollbacks, Symlinked CWD Root Resolution (#62, PR #63) |
 | [**v0.7.1**](./v0.7.1.md) | 2026-10-27 | Nearest-First Bare ID Scope Fallback in `show` (#47, PR #61), Custom Metadata Preservation in `sources` (#57), Relative Nested MCP Bundle Resolution (#58), QF1008 Linter Cleanup |

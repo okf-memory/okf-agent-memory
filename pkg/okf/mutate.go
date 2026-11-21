@@ -64,7 +64,7 @@ func atomicWriteFile(targetPath string, data []byte, perm os.FileMode) error {
 	return nil
 }
 
-// InitBundle initializes a new OKF v0.2 bundle with root index.md and log.md.
+// InitBundle initializes a new OKF v0.3 bundle with root index.md and log.md.
 func InitBundle(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -73,7 +73,7 @@ func InitBundle(dir string) error {
 	return WithBundleLock(dir, func() error {
 		rootIndex := filepath.Join(dir, "index.md")
 		if _, err := os.Stat(rootIndex); os.IsNotExist(err) {
-			indexContent := "---\nokf_version: \"0.2\"\n---\n\n# Knowledge Base\n\n"
+			indexContent := "---\nokf_version: \"0.3\"\n---\n\n# Knowledge Base\n\n"
 			if err := atomicWriteFile(rootIndex, []byte(indexContent), 0o644); err != nil {
 				return fmt.Errorf("failed to write root index.md: %w", err)
 			}
@@ -82,7 +82,7 @@ func InitBundle(dir string) error {
 		logFile := filepath.Join(dir, "log.md")
 		if _, err := os.Stat(logFile); os.IsNotExist(err) {
 			today := time.Now().UTC().Format("2006-01-02")
-			logContent := fmt.Sprintf("## %s\n* **Creation**: Initialized OKF v0.2 knowledge bundle.\n", today)
+			logContent := fmt.Sprintf("## %s\n* **Creation**: Initialized OKF v0.3 knowledge bundle.\n", today)
 			if err := atomicWriteFile(logFile, []byte(logContent), 0o644); err != nil {
 				return fmt.Errorf("failed to write log.md: %w", err)
 			}
@@ -399,7 +399,7 @@ func updateParentIndexLocked(bundleDir string, c *Concept) error {
 		// Create index.md with default header
 		header := fmt.Sprintf("# %s\n\n", titleCase(filepath.Base(dir)))
 		if dir == "." {
-			header = "---\nokf_version: \"0.2\"\n---\n\n# Knowledge Base\n\n"
+			header = "---\nokf_version: \"0.3\"\n---\n\n# Knowledge Base\n\n"
 		}
 		existingContent = header
 	}

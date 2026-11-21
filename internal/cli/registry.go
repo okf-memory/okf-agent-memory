@@ -114,7 +114,7 @@ func init() {
 	})
 	Register(&Command{
 		Name:       "init",
-		Summary:    "Initialize a new OKF v0.2 bundle (index.md, log.md)",
+		Summary:    "Initialize a new OKF v0.3 bundle (index.md, log.md)",
 		PrintUsage: printInitUsage,
 		Run:        cmdInit,
 	})

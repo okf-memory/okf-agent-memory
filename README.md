@@ -325,13 +325,13 @@ okf-agent-memory/
 │   ├── spec/               # OKF convention v0.1, compatibility analysis & architecture RFCs
 │   ├── security/           # Data governance, secret prevention & adversarial security audits
 │   ├── project/            # Project roadmap, release playbook & multi-agent testing
-│   └── releases/           # Versioned release notes & changelog archive (v0.1.0 - v0.8.0)
+│   └── releases/           # Versioned release notes & changelog archive (v0.1.0 - v0.9.0)
 ├── examples/               # Domain-neutral reference DMAA projects (AGENTS.md + OKF v0.2 knowledge/)
 │   ├── books/              # Literature & editorial analysis repository
 │   ├── coaching/           # Executive coaching & client session repository
 │   └── software/           # Microservices architecture & ADR engineering repository
-├── knowledge/              # Project's own OKF v0.2 persistent memory bundle
-│   ├── index.md            # Root progressive disclosure index (okf_version: "0.2")
+├── knowledge/              # Project's own OKF v0.3 persistent memory bundle
+│   ├── index.md            # Root progressive disclosure index (okf_version: "0.3")
 │   ├── log.md              # Dated change log (ISO 8601 YYYY-MM-DD)
 │   ├── project/            # Overview & value propositions
 │   ├── architecture/       # 5-tier architecture, governance model & decisions

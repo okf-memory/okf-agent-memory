@@ -178,5 +178,5 @@ Always ensure strict bundle conformance at the end of every workflow:
   ```
 Output:
 ```
-OKF v0.2 check of "knowledge" (v0.2): 7 concept(s), 0 error(s), 0 gate finding(s), 0 warning(s); 0 broken link(s), 0 orphan(s), 0 stale [--strict]. Conformant.
+OKF v0.3 check of "knowledge" (v0.3): 7 concept(s), 0 error(s), 0 gate finding(s), 0 warning(s); 0 broken link(s), 0 orphan(s), 0 stale [--strict]. Conformant.
 ```

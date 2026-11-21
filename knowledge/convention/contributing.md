@@ -6,7 +6,7 @@ tags: [contributing, contribute, workflow, standards, pr, pull-request]
 generated: { by: agent/mcp, at: "2026-11-05T22:08:03Z" }
 status: stable
 sources:
-  - resource: ../../CONTRIBUTING.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/CONTRIBUTING.md
     id: contributing-guide
     title: OKF Agent Memory Contributing Guide
     last_modified: 2026-09-11

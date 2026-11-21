@@ -20,7 +20,7 @@ var (
 	}
 )
 
-// IsValidConceptStatus reports whether status is an OKF v0.2 lifecycle value.
+// IsValidConceptStatus reports whether status is an OKF v0.3 lifecycle value.
 func IsValidConceptStatus(status string) bool {
 	return validStatuses[status]
 }
@@ -70,7 +70,7 @@ func parseTimestamp(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// Validate performs full OKF v0.2 conformance, connectivity, and drift validation on a loaded bundle.
+// Validate performs full OKF v0.3 conformance (with v0.2 fallbacks), connectivity, and drift validation on a loaded bundle.
 func Validate(b *Bundle, opts ValidateOptions) *ValidationResult {
 	res := &ValidationResult{
 		BundlePath:   b.RootPath,

@@ -7,11 +7,11 @@ tags: [architecture, layers, design, tooling]
 generated: { by: agent/mcp, at: "2026-10-01T08:25:09Z" }
 status: stable
 sources:
-  - resource: ../../docs/spec/CONVENTION.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/spec/CONVENTION.md
     id: convention
     title: OKF Agent Memory Convention v0.1
     last_modified: 2026-08-27
-  - resource: ../../docs/project/ROADMAP.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/project/ROADMAP.md
     id: roadmap
     title: OKF Agent Memory Project Roadmap
     last_modified: 2026-08-27

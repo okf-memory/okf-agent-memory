@@ -208,7 +208,7 @@ func TestCmdPull_InvalidBundleRollback(t *testing.T) {
 	if exitCode != 1 {
 		t.Errorf("expected exit code 1, got %d", exitCode)
 	}
-	if !strings.Contains(errOutput, "is not a valid OKF v0.2 bundle") {
+	if !strings.Contains(errOutput, "is not a valid OKF bundle") {
 		t.Errorf("expected validation rollback error message, got: %s", errOutput)
 	}
 

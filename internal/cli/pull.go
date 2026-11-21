@@ -110,7 +110,7 @@ func cmdPull(args []string) {
 		return
 	}
 
-	// Post-install validation: ensure installed bundle conforms to OKF v0.2 and passes quality gate
+	// Post-install validation: ensure installed bundle conforms to OKF and passes quality gate
 	rollback := func() {
 		if err := staging.Discard(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: rollback refused: %v\n", err)
@@ -119,7 +119,7 @@ func cmdPull(args []string) {
 
 	if _, err := os.Stat(filepath.Join(staging.Dir, "index.md")); os.IsNotExist(err) {
 		rollback()
-		fmt.Fprintf(os.Stderr, "Error: bundle %q is not a valid OKF v0.2 bundle: missing index.md (installation rolled back)\n", manifest.ID)
+		fmt.Fprintf(os.Stderr, "Error: bundle %q is not a valid OKF bundle: missing index.md (installation rolled back)\n", manifest.ID)
 		exitFunc(1)
 		return
 	}

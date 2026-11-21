@@ -16,9 +16,9 @@ var embeddedAssets embed.FS
 const defaultOKFAgentsBlock = `<!-- BEGIN OKF AGENT MEMORY -->
 ---
 
-## 🧠 Persistent Project Memory (OKF v0.2)
+## 🧠 Persistent Project Memory (OKF v0.3)
 
-> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) — Open Knowledge Format (OKF) v0.2 persistent project memory for AI agents.
+> Powered by [OKF Agent Memory](https://github.com/okf-memory/okf-agent-memory) — Open Knowledge Format (OKF) v0.3 persistent project memory for AI agents.
 
 ### 1. Behavioral Invariants & Constraints (RFC 2119)
 - MUST execute ` + "`okf_search(query=keywords, limit=3)`" + ` before proposing architecture, new dependencies, or substantial code changes.
@@ -94,7 +94,7 @@ func Bootstrap(targetDir string, opts BootstrapOptions) error {
 
 		rootIndex := filepath.Join(knowledgeDir, "index.md")
 		if _, err := os.Stat(rootIndex); os.IsNotExist(err) {
-			content := fmt.Sprintf("---\nokf_version: \"0.2\"\n---\n\n# %s Knowledge Base\n\nPersistent memory bundle for this repository.\n", projectName)
+			content := fmt.Sprintf("---\nokf_version: \"0.3\"\ntitle: %q\ndescription: \"Persistent memory bundle for this repository.\"\n---\n\n# %s Knowledge Base\n\nPersistent memory bundle for this repository.\n", projectName+" Knowledge Base", projectName)
 			if err := os.WriteFile(rootIndex, []byte(content), 0o644); err != nil {
 				return fmt.Errorf("failed to write knowledge/index.md: %w", err)
 			}
@@ -103,7 +103,7 @@ func Bootstrap(targetDir string, opts BootstrapOptions) error {
 		logFile := filepath.Join(knowledgeDir, "log.md")
 		if _, err := os.Stat(logFile); os.IsNotExist(err) {
 			today := time.Now().UTC().Format("2006-01-02")
-			logContent := fmt.Sprintf("## %s\n* **Creation**: Initialized OKF v0.2 project memory.\n", today)
+			logContent := fmt.Sprintf("## %s\n* **Creation**: Initialized OKF v0.3 project memory.\n", today)
 			if err := os.WriteFile(logFile, []byte(logContent), 0o644); err != nil {
 				return fmt.Errorf("failed to write knowledge/log.md: %w", err)
 			}

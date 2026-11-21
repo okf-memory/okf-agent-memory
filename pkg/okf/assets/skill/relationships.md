@@ -1,6 +1,6 @@
 # Relationship Building & Graph Linking Guide
 
-Concepts in an OKF v0.2 bundle do not exist in isolation. Linking related concepts creates a high-signal knowledge graph that allows future agents to discover relevant dependencies, constraints, and historical context.
+Concepts in an OKF v0.3 bundle do not exist in isolation. Linking related concepts creates a high-signal knowledge graph that allows future agents to discover relevant dependencies, constraints, and historical context.
 
 ---
 

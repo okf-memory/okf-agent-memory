@@ -7,7 +7,7 @@ tags: [convention, principles, contract, agent-rules]
 generated: { by: agent/mcp, at: 2026-09-08T07:51:26Z }
 status: stable
 sources:
-  - resource: ../../docs/spec/CONVENTION.md
+  - resource: https://github.com/okf-memory/okf-agent-memory/blob/main/docs/spec/CONVENTION.md
     id: convention
     title: OKF Agent Memory Convention v0.1
     last_modified: 2026-08-27
